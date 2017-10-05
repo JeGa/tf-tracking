@@ -49,6 +49,7 @@ def train_loop(sess, tensors, input_handles, train_writer, epoch, saver, globals
     while True:
         try:
             with util.helper.timeit() as input_time:
+                # Images are normalized.
                 out_input_pipeline = sess.run(tensors,
                                               feed_dict={input_handles['handle']: input_handles['training_handle']})
 

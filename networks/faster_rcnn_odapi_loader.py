@@ -6,6 +6,7 @@ import logging
 class faster_rcnn_odapi:
     def __init__(self):
         self.graph = None
+        self.session = None
 
         self.image_tensor = None
         self.boxes = None
@@ -23,6 +24,7 @@ class faster_rcnn_odapi:
                 tf.import_graph_def(od_graph_def, name='')
 
         self.graph = detection_graph
+        self.session = tf.Session(graph=self.graph)
 
         self.get_tensors()
 
@@ -51,9 +53,7 @@ class faster_rcnn_odapi:
             logging.warning('Graph not loaded.')
             return None
 
-        with self.graph.as_default():
-            with tf.Session(graph=self.graph) as sess:
-                boxes, scores, num_detections = sess.run([self.boxes, self.scores, self.num_detections],
+        boxes, scores, num_detections = self.session.run([self.boxes, self.scores, self.num_detections],
                                                          feed_dict={self.image_tensor: image})
 
         # Remove the batch dimension.
