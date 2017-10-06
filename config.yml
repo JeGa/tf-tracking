@@ -12,14 +12,20 @@ train_summaries: 'summaries/train'
 checkpoints: 'checkpoints'
 results: 'results'
 
+summary_interval: 1
+
+# TODO: Unused.
+save_interval: 200
+validation_interval: 500
+
 resize_height: 480
 resize_width: 854
 
 batch_size: 1
-epochs: 15
-backprop_step_size: 80 # Defines the width of the unrolled rnn graph.
+epochs: 300
+backprop_step_size: 30 # Defines the width of the unrolled rnn graph.
 learning_rate: 0.0001
 
 # TODO: Unused.
 lstm_layers: 1
-state_size: 1000
+state_size: 1500

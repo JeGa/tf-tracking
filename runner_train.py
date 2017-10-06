@@ -1,6 +1,7 @@
 import tensorflow as tf
 import click
 import logging
+import os
 
 import util.global_config as global_config
 import util.builder
@@ -18,8 +19,7 @@ def loop(sess, tensors, input_handles, frcnn):
                                          global_config.cfg['epochs']])
     train_writer = tf.summary.FileWriter(filename, sess.graph)
 
-    # TODO
-    saver = None  # tf.train.Saver()
+    saver = tf.train.Saver()
 
     globalstep = 0
     with util.helper.timeit() as ttime:
@@ -31,6 +31,8 @@ def loop(sess, tensors, input_handles, frcnn):
 @click.command()
 @click.option("--config", default="config.yml", help="The configuration file.")
 def main(config):
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
     # This makes the configuration available as global_config.cfg dictionary and makes the required folders.
     global_config.read(config)
 
