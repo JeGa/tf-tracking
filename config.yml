@@ -1,10 +1,10 @@
-#input_data_training: 'C:\E\Data\TUM\Semester 3\Lab Course DLCV\deep analytics\data\bball_google_handlabeled\tfrecords\bball_google_handlabeled.train.record'
-#input_data_testing: 'C:\E\Data\TUM\Semester 3\Lab Course DLCV\deep analytics\data\bball_google_handlabeled\tfrecords\bball_google_handlabeled.train.record'
+#input_data_training: 'C:\E\Data\TUM\Semester 3\Lab Course DLCV\deep analytics\data\bball_google_handlabeled\tfrecords\sequence.train.record'
+#input_data_testing: 'C:\E\Data\TUM\Semester 3\Lab Course DLCV\deep analytics\data\bball_google_handlabeled\tfrecords\sequence.train.record'
+
+input_data_training: '/work/deepanalytics/bball_google_handlabeled/tfrecords/sequence.train.record'
+input_data_testing: '/work/deepanalytics/bball_google_handlabeled/tfrecords/sequence.train.record'
 
 #faster_rcnn_graph: 'C:\E\Data\TUM\Semester 3\Lab Course DLCV\deep analytics\data\bball_google_handlabeled\faster_rcnn_graph\output_inference_graph.pb'
-
-input_data_training: '/work/deepanalytics/bball_google_handlabeled/tfrecords/bball_google_handlabeled.train.record'
-input_data_testing: '/work/deepanalytics/bball_google_handlabeled/tfrecords/bball_google_handlabeled.train.record'
 
 faster_rcnn_graph: '/work/deepanalytics/bball_google_handlabeled/faster_rcnn_graph/output_inference_graph.pb'
 
@@ -17,4 +17,9 @@ resize_width: 854
 
 batch_size: 1
 epochs: 15
+backprop_step_size: 80 # Defines the width of the unrolled rnn graph.
 learning_rate: 0.0001
+
+# TODO: Unused.
+lstm_layers: 1
+state_size: 1000

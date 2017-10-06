@@ -1,8 +1,7 @@
 import tensorflow as tf
 
+import input_pipeline.images.proto_helper as proto_helper
 import util.global_config as global_config
-
-import input_pipeline.proto_helper as proto_helper
 
 
 def parse_proto(serialized_example):

@@ -1,13 +1,10 @@
-import tensorflow as tf
-
+import input_pipeline.sequences.tfrecord_reader
 import util.global_config as global_config
-
-import input_pipeline.tfrecord_reader
 
 
 def build():
-    # The bb coordinates are saved un-normalized.
-    input_data, input_handles = input_pipeline.tfrecord_reader.read_graph(
+    # The bb coordinates and the images are normalized.
+    input_data, input_handles = input_pipeline.sequences.tfrecord_reader.read_graph(
         global_config.cfg['input_data_training'],
         global_config.cfg['input_data_testing'])
 

@@ -1,19 +1,13 @@
 import tensorflow as tf
 import click
 import logging
-import time
-import os
+import numpy as np
 
 import util.global_config as global_config
 import util.builder
 import util.helper
 
 import networks.faster_rcnn_odapi_loader
-
-from PIL import Image
-from PIL import ImageDraw
-import os
-import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
@@ -54,10 +48,18 @@ def train_loop(sess, tensors, input_handles, train_writer, epoch, saver, globals
                                               feed_dict={input_handles['handle']: input_handles['training_handle']})
 
             with util.helper.timeit() as frcnn_time:
-                # [bbs: (10,4), scores: 10]
-                out_frcnn = frcnn.predict((out_input_pipeline['input_data']['image'] * 255).astype(np.uint8))
+                # Take first batch element: [sequence_size, height, width, 3].
+                sequence_images = out_input_pipeline['input_data']['images'][0]
 
-            util.helper.draw_bb_and_save(out_input_pipeline['input_data']['image'] * 255, out_frcnn[0])
+                out_frcnn = np.zeros((sequence_images.shape[0], 10, 4))
+
+                # Go through sequence.
+                for i in range(sequence_images.shape[0]):
+                    # [bbs: (10,4), scores: 10]
+                    out = frcnn.predict((np.expand_dims(sequence_images[i], 0) * 255).astype(np.uint8))
+                    out_frcnn[i] = out[0]
+
+            util.helper.draw_bb_and_save(out_input_pipeline['input_data']['images'][0] * 255, out_frcnn)
 
             if step % 1 == 0:
                 logging.info('Epoch %d, step %d, global step %d (%.3f/%.3f sec input/frcnn).' % (
@@ -100,7 +102,7 @@ def loop(sess, tensors, input_handles, frcnn):
 @click.command()
 @click.option("--config", default="config.yml", help="The configuration file.")
 def main(config):
-    # This makes the configuration available as global_config.cfg dictionary.
+    # This makes the configuration available as global_config.cfg dictionary and makes the required folders.
     global_config.read(config)
 
     frcnn = networks.faster_rcnn_odapi_loader.faster_rcnn_odapi()
