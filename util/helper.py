@@ -28,11 +28,12 @@ class timeit:
         return self.duration
 
 
-def draw_bb_and_save(images, gt_bbs, frcnn_bbs):
+def draw_bb_and_save(images, gt_bbs, frcnn_bbs, lstm_bbs):
     """
     :param images: Shape [batch_size/sequence_size, height, width, 3].
     :param gt_bbs: Shape [batch_size/sequence_size, 10, 4]. bbs in format x, y, w, h.
     :param frcnn_bbs: Shape [batch_size/sequence_size, 10, 4]. bbs in format ymin, xmin, ymax, xmax.
+    :param lstm_bbs: Shape [batch_size/sequence_size, 10, 4]. bbs in format x, y, w, h.
     """
     height = images.shape[1]
     width = images.shape[2]
@@ -44,6 +45,7 @@ def draw_bb_and_save(images, gt_bbs, frcnn_bbs):
         for j in range(gt_bbs.shape[1]):
             gt = gt_bbs[i][j]
             pred = frcnn_bbs[i][j]
+            lstm = lstm_bbs[i][j]
 
             # Wants [x0, y0, x1, y1]
             draw.rectangle([pred[1] * width, pred[0] * height, pred[3] * width, pred[2] * height], outline='red')
@@ -59,6 +61,18 @@ def draw_bb_and_save(images, gt_bbs, frcnn_bbs):
             ymax = y + h / 2.0
 
             draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
+
+            x = lstm[0]
+            y = lstm[1]
+            w = lstm[2]
+            h = lstm[3]
+
+            xmin = x - w / 2.0
+            ymin = y - h / 2.0
+            xmax = x + w / 2.0
+            ymax = y + h / 2.0
+
+            draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
 
         file = os.path.normpath(os.path.join(global_config.cfg['results'], 'input_image'))
 

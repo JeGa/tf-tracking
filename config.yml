@@ -13,6 +13,7 @@ checkpoints: 'checkpoints'
 results: 'results'
 
 summary_interval: 1
+result_interval: 10
 
 # TODO: Unused.
 save_interval: 200

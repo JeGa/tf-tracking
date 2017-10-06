@@ -41,13 +41,21 @@ def runall(sess, tensors, input_handles):
     return out['input_data'], out['lstm'], out['summary'], t.time()
 
 
-def interval_actions(epoch, step, globalstep, train_time, frcnn_time, train_writer, summary):
+def interval_actions(epoch, step, globalstep, train_time, frcnn_time, train_writer, summary,
+                     sequence_images, out_input_pipeline, out_frcnn, out_lstm):
     if step % 1 == 0:
         logging.info('Epoch %d, step %d, global step %d (%.3f/%.3f sec lstm_train/frcnn_predict).' % (
             epoch, step, globalstep, train_time, frcnn_time))
 
     if step % global_config.cfg['summary_interval'] == 0:
         train_writer.add_summary(summary, globalstep)
+
+    if step % global_config.cfg['result_interval'] == 0:
+        util.helper.draw_bb_and_save(sequence_images * 255,
+                                     np.reshape(out_input_pipeline['groundtruth_bbs'][0],
+                                                (sequence_images.shape[0], 10, 4)),
+                                     out_frcnn,
+                                     np.reshape(out_lstm['predictions'][0], (-1, 10, 4)))
 
         # if step % global_config.cfg['save_interval'] == 0:
         #    saver.save(sess, os.path.join(global_config.cfg['checkpoints'], 'checkpoint'),
@@ -74,14 +82,9 @@ def run(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, fr
             # Make frcnn predictions for all images in that sequence.
             out_frcnn, frcnn_time = predict_frcnn(sequence_images, frcnn)
 
-            # Just for visualization.
-            util.helper.draw_bb_and_save(sequence_images * 255,
-                                         np.reshape(out_input_pipeline['groundtruth_bbs'][0],
-                                                    (sequence_images.shape[0], 10, 4)),
-                                         out_frcnn)
-
             # Actions that are done only each n steps.
-            interval_actions(epoch, step, globalstep, train_time, frcnn_time, train_writer, summary)
+            interval_actions(epoch, step, globalstep, train_time, frcnn_time, train_writer, summary, sequence_images,
+                             out_input_pipeline, out_frcnn, out_lstm)
 
             step += 1
             globalstep += 1
