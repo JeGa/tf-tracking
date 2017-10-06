@@ -1,87 +1,16 @@
 import tensorflow as tf
 import click
 import logging
-import numpy as np
 
 import util.global_config as global_config
 import util.builder
 import util.helper
 
+import trainloop
+
 import networks.faster_rcnn_odapi_loader
 
 logging.basicConfig(level=logging.INFO)
-
-
-# def validation_loop(sess, tensors, input_handles, train_writer, globalstep):
-#     logging.info('Run validation.')
-#
-#     sess.run(input_handles['validation_initializer'])
-#
-#     validation_loss = []
-#     while True:
-#         try:
-#             out_val = sess.run([tensors['loss']],
-#                                feed_dict={input_handles['handle']: input_handles['validation_handle']})
-#             validation_loss.append(out_val[0])
-#         except tf.errors.OutOfRangeError:
-#             break
-#
-#     sumloss = sum(validation_loss) / max(len(validation_loss), 1)
-#     logging.info('Validation loss: ' + str(sumloss))
-#
-#     summary = tf.Summary()
-#     summary.value.add(tag='total_validation_loss', simple_value=sumloss)
-#     train_writer.add_summary(summary, globalstep)
-
-
-def train_loop(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, frcnn, validate=True):
-    sess.run(input_handles['training_initializer'])
-
-    step = 0
-
-    # Go through one epoch.
-    while True:
-        try:
-            with util.helper.timeit() as input_time:
-                # Images are normalized.
-                out_input_pipeline = sess.run(tensors,
-                                              feed_dict={input_handles['handle']: input_handles['training_handle']})
-
-            with util.helper.timeit() as frcnn_time:
-                # Take first batch element: [sequence_size, height, width, 3].
-                sequence_images = out_input_pipeline['input_data']['images'][0]
-
-                out_frcnn = np.zeros((sequence_images.shape[0], 10, 4))
-
-                # Go through sequence.
-                for i in range(sequence_images.shape[0]):
-                    # [bbs: (10,4), scores: 10]
-                    out = frcnn.predict((np.expand_dims(sequence_images[i], 0) * 255).astype(np.uint8))
-                    out_frcnn[i] = out[0]
-
-            util.helper.draw_bb_and_save(out_input_pipeline['input_data']['images'][0] * 255, out_frcnn)
-
-            if step % 1 == 0:
-                logging.info('Epoch %d, step %d, global step %d (%.3f/%.3f sec input/frcnn).' % (
-                    epoch, step, globalstep, input_time.time(), frcnn_time.time()))
-
-            # if step % global_config.cfg['summary_interval'] == 0:
-            #    train_writer.add_summary(out[1], globalstep)
-
-            # if step % global_config.cfg['save_interval'] == 0:
-            #    saver.save(sess, os.path.join(global_config.cfg['checkpoints'], 'checkpoint'),
-            #               global_step=globalstep)
-
-            # if validate:
-            #    if globalstep % global_config.cfg['validation_interval'] == 0:
-            #        validation_loop(sess, tensors, input_handles, train_writer, globalstep)
-
-            step += 1
-            globalstep += 1
-        except tf.errors.OutOfRangeError:
-            break
-
-    return globalstep
 
 
 def loop(sess, tensors, input_handles, frcnn):
@@ -95,7 +24,7 @@ def loop(sess, tensors, input_handles, frcnn):
     globalstep = 0
     with util.helper.timeit() as ttime:
         for epoch in range(global_config.cfg['epochs']):
-            globalstep = train_loop(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, frcnn)
+            globalstep = trainloop.run(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, frcnn)
     logging.info('Done training (' + str(ttime.time()) + ' sec, ' + str(globalstep) + ' steps).')
 
 
