@@ -13,12 +13,13 @@ def _shapeinfo(inputs, targets):
     return batch_size, step_size, input_dimension, output_dimension
 
 
-def build(inputs, targets, state_size, num_layers=1):
+def build(inputs, targets, state_size, num_layers=1, learning_rate=0.001):
     """
     :param inputs: Shape (batch_size, step_size, input_dimension).
     :param targets: Shape (batch_size, step_size, input_dimension).
     :param state_size: Scalar.
     :param num_layers: Scalar.
+    :param learning_rate: Scalar
 
     :return total_loss
     :return train_step
@@ -48,7 +49,7 @@ def build(inputs, targets, state_size, num_layers=1):
         total_loss = tf.reduce_mean(tf.nn.l2_loss(predictions - targets))
 
     with tf.name_scope('training'):
-        train_step = tf.train.AdagradOptimizer(0.001).minimize(total_loss)
+        train_step = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
 
     tf.summary.histogram('state_hist', rnn_outputs)
     tf.summary.histogram('prediction_hist', predictions)
