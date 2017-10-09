@@ -76,16 +76,19 @@ def build_network(inputs, targets):
     region_proposals = tf.placeholder(tf.float32, shape=(global_config.cfg['batch_size'],
                                                          global_config.cfg['backprop_step_size'],
                                                          10, 4), name='frcnn_inputs')
-    #
-    # start_region_proposal = tf.zeros((global_config.cfg['batch_size'], 10, 4))
-    # last_region_proposals = tf.concat([start_region_proposal, region_proposals[:, -1]], axis=1)
-    #
-    # start_lstm_prediction = tf.zeros((global_config.cfg['batch_size'], 40))
-    # lstm_predictions = tf.concat([start_lstm_prediction, predictions[:, -1]], axis=1)
 
-    # lstm_predictions = tf.reshape(lstm_predictions, (global_config.cfg['batch_size'],
-    #                                                 global_config.cfg['backprop_step_size'],
-    #                                                 10, 4))
+    # predictions Shape (batch_size, step_size, output_dimension).
+
+    start_region_proposal = tf.zeros((global_config.cfg['batch_size'], 1, 10, 4))
+    last_region_proposals = tf.concat([start_region_proposal, region_proposals[:, :-1]], axis=1)
+
+    start_lstm_prediction = tf.zeros((global_config.cfg['batch_size'], 1, 40))
+    lstm_predictions = tf.concat([start_lstm_prediction, predictions[:, :-1]], axis=1)
+
+    # todo
+    # lstm_predictions = tf.reshape(lstm_predictions, [global_config.cfg['batch_size'],
+    #                                                global_config.cfg['backprop_step_size'],
+    #                                                10, 4])
 
     # 1. lstm_predictions: [batch_size, sequence_length, 10, 4].
     #       - Add zero vector to have [batch_size, sequence_length + 1, 10, 4]
@@ -98,7 +101,10 @@ def build_network(inputs, targets):
         'targets': targets,
         'total_loss': total_loss,
         'train_step': train_step,
-        'predictions': predictions
+        'predictions': predictions,
+
+        'last_region_proposal': last_region_proposals,
+        'last_lstm_predictions': lstm_predictions
     }
 
     rpn_tensors = {
