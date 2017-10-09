@@ -6,56 +6,64 @@ import util.helper
 import util.global_config as global_config
 
 
-# TODO: Unused.
 # If you want to run only the input data reading part.
-def read_input(sess, input_tensors, input_handles):
+def read_input(sess, tensors, input_handles):
     with util.helper.timeit() as input_time:
         # Images are normalized.
-        out_input_pipeline = sess.run(input_tensors,
+        out_input_pipeline = sess.run(tensors['input_data'],
                                       feed_dict={input_handles['handle']: input_handles['training_handle']})
 
-    return out_input_pipeline, input_time
+    return out_input_pipeline, input_time.time()
 
 
-# Uses an own session for the rrcnn graph.
+# Train the lstm with input data given as feed_dict.
+def train(sess, tensors, input_pipeline_out, frcnn_out):
+    with util.helper.timeit() as train_time:
+        train_lstm_out, summary_out = sess.run([tensors['lstm'], tensors['summary']], feed_dict={
+            tensors['input_data_placeholders']['groundtruth_bbs']: input_pipeline_out['groundtruth_bbs'],
+            tensors['input_data_placeholders']['target_bbs']: input_pipeline_out['target_bbs'],
+            tensors['input_data_placeholders']['images']: input_pipeline_out['images'],
+
+            tensors['rpn']['region_proposals_placeholder']: frcnn_out
+        })
+    return train_lstm_out, summary_out, train_time.time()
+
+
+# Uses an own session for the rcnn graph.
 def predict_frcnn(sequence_images, frcnn):
-    sequence_size = sequence_images.shape[0]
+    batch_size = sequence_images.shape[0]
+    sequence_length = sequence_images.shape[1]
+
+    frcnn_out = np.zeros((batch_size,
+                          sequence_length,
+                          10, 4))
 
     with util.helper.timeit() as frcnn_time:
-        out_frcnn = np.zeros((sequence_size, 10, 4))
+        for i in range(batch_size):
+            for j in range(sequence_length):
+                frcnn_out[i][j], _ = frcnn.predict((np.expand_dims(sequence_images[i][j], 0) * 255).astype(np.uint8))
 
-        # Go through sequence.
-        for i in range(sequence_size):
-            # [bbs: (10,4), scores: 10]
-            out = frcnn.predict((np.expand_dims(sequence_images[i], 0) * 255).astype(np.uint8))
-            out_frcnn[i] = out[0]
-
-    return out_frcnn, frcnn_time.time()
+    return frcnn_out, frcnn_time.time()
 
 
-# Run the complete graph.
-def runall(sess, tensors, input_handles):
-    with util.helper.timeit() as t:
-        out = sess.run(tensors, feed_dict={input_handles['handle']: input_handles['training_handle']})
-
-    return out['input_data'], out['lstm'], out['summary'], t.time()
-
-
-def interval_actions(epoch, step, globalstep, train_time, frcnn_time, train_writer, summary,
-                     sequence_images, out_input_pipeline, out_frcnn, out_lstm):
+def interval_actions(epoch, step, globalstep,
+                     input_time, train_time, frcnn_time,
+                     loss, train_writer, summary):
+    # sequence_images, out_input_pipeline, out_frcnn, out_lstm):
     if step % 1 == 0:
-        logging.info('Epoch %d, step %d, global step %d (%.3f/%.3f sec lstm_train/frcnn_predict).' % (
-            epoch, step, globalstep, train_time, frcnn_time))
+        logging.info(
+            'Epoch %d, step %d, global step %d (%.3f/%.3f/%.3f sec input/lstm_train/frcnn_predict). Loss %.3f.' % (
+                epoch, step, globalstep, input_time, train_time, frcnn_time, loss))
 
     if step % global_config.cfg['summary_interval'] == 0:
         train_writer.add_summary(summary, globalstep)
 
-    if step % global_config.cfg['result_interval'] == 0:
-        util.helper.draw_bb_and_save(sequence_images * 255,
-                                     np.reshape(out_input_pipeline['groundtruth_bbs'][0],
-                                                (sequence_images.shape[0], 10, 4)),
-                                     out_frcnn,
-                                     np.reshape(out_lstm['predictions'][0], (-1, 10, 4)))
+        # if step % global_config.cfg['result_interval'] == 0:
+        #     util.helper.draw_bb_and_save(sequence_images * 255,
+        #                                  np.reshape(out_input_pipeline['groundtruth_bbs'][0],
+        #                                             (sequence_images.shape[0], 10, 4)),
+        #                                  out_frcnn,
+        #                                  np.reshape(out_lstm['predictions'][0], (-1, 10, 4)))
 
         # if step % global_config.cfg['save_interval'] == 0:
         #    saver.save(sess, os.path.join(global_config.cfg['checkpoints'], 'checkpoint'),
@@ -67,6 +75,41 @@ def interval_actions(epoch, step, globalstep, train_time, frcnn_time, train_writ
 
 
 def run(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, frcnn, validate=True):
+    """
+    tensors is a dict with the following keys:
+
+      'input_data': {
+          'groundtruth_bbs': groundtruth_bbs,
+          'target_bbs': target_bbs,
+          'images': images
+      }
+
+      'input_data_placeholders': {
+          'groundtruth_bbs': groundtruth_bbs,
+          'target_bbs': target_bbs,
+          'images': images
+      }
+
+      'lstm': {
+          'inputs': inputs,
+          'targets': targets,
+          'total_loss': total_loss,
+          'train_step': train_step,
+          'predictions': predictions
+      }
+
+      'summary': summary.
+
+    input_handles is a dict:
+
+      input_handles = {
+          'training_initializer': input_handles['tr_it'].initializer,
+          'validation_initializer': input_handles['val_it'].initializer,
+          'training_handle': training_handle,
+          'validation_handle': validation_handle,
+          'handle': input_handles['h']
+      }
+    """
     sess.run(input_handles['training_initializer'])
 
     step = 0
@@ -74,17 +117,15 @@ def run(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, fr
     # Go through one epoch.
     while True:
         try:
-            out_input_pipeline, out_lstm, summary, train_time = runall(sess, tensors, input_handles)
+            input_pipeline_out, input_time = read_input(sess, tensors, input_handles)
 
-            # Take first batch element: [sequence_size, height, width, 3].
-            sequence_images = out_input_pipeline['images'][0]
+            frcnn_out, frcnn_time = predict_frcnn(input_pipeline_out['images'], frcnn)
 
-            # Make frcnn predictions for all images in that sequence.
-            out_frcnn, frcnn_time = predict_frcnn(sequence_images, frcnn)
+            lstm_out, summary_out, train_time = train(sess, tensors, input_pipeline_out, frcnn_out)
 
-            # Actions that are done only each n steps.
-            interval_actions(epoch, step, globalstep, train_time, frcnn_time, train_writer, summary, sequence_images,
-                             out_input_pipeline, out_frcnn, out_lstm)
+            interval_actions(epoch, step, globalstep,
+                             input_time, train_time, 0,
+                             lstm_out['total_loss'], train_writer, summary_out)
 
             step += 1
             globalstep += 1

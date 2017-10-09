@@ -1,6 +1,7 @@
 import tensorflow as tf
 
 import input_pipeline.sequences.tfrecord_reader
+import input_pipeline.sequences.placeholder
 import util.global_config as global_config
 import networks.lstm
 
@@ -45,22 +46,22 @@ def bbdata_image(bbs, image, name):
     tf.summary.image(name, image_bbs)
 
 
-def summaries(tensors):
+def add_summaries(tensors):
     tf.summary.scalar('lstm_loss', tensors['lstm']['total_loss'])
 
     batch = 0
     sequence_element = -1
 
     bbdata_image(tensors['lstm']['inputs'][batch][sequence_element],
-                 tensors['input_data']['images'][batch][sequence_element],
+                 tensors['input_data_placeholders']['images'][batch][sequence_element],
                  'inputs')
 
     bbdata_image(tensors['lstm']['targets'][batch][sequence_element],
-                 tensors['input_data']['images'][batch][sequence_element],
+                 tensors['input_data_placeholders']['images'][batch][sequence_element],
                  'targets')
 
     bbdata_image(tensors['lstm']['predictions'][batch][sequence_element],
-                 tensors['input_data']['images'][batch][sequence_element],
+                 tensors['input_data_placeholders']['images'][batch][sequence_element],
                  'predictions')
 
     tensors['summary'] = tf.summary.merge_all()
@@ -72,6 +73,26 @@ def build_network(inputs, targets):
                                                               global_config.cfg['lstm_layers'],
                                                               learning_rate=global_config.cfg['learning_rate'])
 
+    region_proposals = tf.placeholder(tf.float32, shape=(global_config.cfg['batch_size'],
+                                                         global_config.cfg['backprop_step_size'],
+                                                         10, 4), name='frcnn_inputs')
+    #
+    # start_region_proposal = tf.zeros((global_config.cfg['batch_size'], 10, 4))
+    # last_region_proposals = tf.concat([start_region_proposal, region_proposals[:, -1]], axis=1)
+    #
+    # start_lstm_prediction = tf.zeros((global_config.cfg['batch_size'], 40))
+    # lstm_predictions = tf.concat([start_lstm_prediction, predictions[:, -1]], axis=1)
+
+    # lstm_predictions = tf.reshape(lstm_predictions, (global_config.cfg['batch_size'],
+    #                                                 global_config.cfg['backprop_step_size'],
+    #                                                 10, 4))
+
+    # 1. lstm_predictions: [batch_size, sequence_length, 10, 4].
+    #       - Add zero vector to have [batch_size, sequence_length + 1, 10, 4]
+    #       - Optionally discard last vector.
+    # 2. region_proposals (placeholder): [batch_size = 1, sequence_length, 10, 4].
+    # 3. last_region_proposals: [batch_size = 1, sequence_length, 10, 4]
+
     lstm_tensors = {
         'inputs': inputs,
         'targets': targets,
@@ -80,23 +101,34 @@ def build_network(inputs, targets):
         'predictions': predictions
     }
 
-    return lstm_tensors
+    rpn_tensors = {
+        'region_proposals_placeholder': region_proposals
+    }
+
+    return lstm_tensors, rpn_tensors
 
 
 def build():
     # The bb coordinates and the images are normalized.
+    # TODO: Move parameters inside.
     input_data, input_handles = input_pipeline.sequences.tfrecord_reader.read_graph(
         global_config.cfg['input_data_training'],
         global_config.cfg['input_data_testing'])
 
+    input_data_placeholders = input_pipeline.sequences.placeholder.build()
+
     with tf.variable_scope('model'):
-        lstm_tensors = build_network(input_data['groundtruth_bbs'], input_data['target_bbs'])
+        lstm_tensors, rpn_tensors = build_network(input_data_placeholders['groundtruth_bbs'],
+                                                  input_data_placeholders['target_bbs'])
 
     tensors = {
         'input_data': input_data,
-        'lstm': lstm_tensors
+
+        'input_data_placeholders': input_data_placeholders,
+        'lstm': lstm_tensors,
+        'rpn': rpn_tensors
     }
 
-    summaries(tensors)
+    add_summaries(tensors)
 
     return tensors, input_handles
