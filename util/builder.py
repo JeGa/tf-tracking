@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 
 import input_pipeline.sequences.tfrecord_reader
 import input_pipeline.sequences.placeholder
@@ -79,16 +80,26 @@ def build_network(inputs, targets):
 
     # predictions Shape (batch_size, step_size, output_dimension).
 
+    current_region_proposals = tf.reshape(region_proposals, [global_config.cfg['batch_size'],
+                                                             global_config.cfg['backprop_step_size'],
+                                                             40])
+
     start_region_proposal = tf.zeros((global_config.cfg['batch_size'], 1, 10, 4))
     last_region_proposals = tf.concat([start_region_proposal, region_proposals[:, :-1]], axis=1)
+    last_region_proposals = tf.reshape(last_region_proposals, [global_config.cfg['batch_size'],
+                                                               global_config.cfg['backprop_step_size'],
+                                                               40])
 
     start_lstm_prediction = tf.zeros((global_config.cfg['batch_size'], 1, 40))
     lstm_predictions = tf.concat([start_lstm_prediction, predictions[:, :-1]], axis=1)
 
-    # todo
-    # lstm_predictions = tf.reshape(lstm_predictions, [global_config.cfg['batch_size'],
-    #                                                global_config.cfg['backprop_step_size'],
-    #                                                10, 4])
+    # Stack all into input vector for classificator.
+    cls_input = tf.concat([current_region_proposals, last_region_proposals, lstm_predictions], axis=2)
+
+    def classificators(cls_input):
+        with tf.name_scope('cls_fc'):
+            for j in range(10):
+                slim.fully_connected(cls_input)
 
     # 1. lstm_predictions: [batch_size, sequence_length, 10, 4].
     #       - Add zero vector to have [batch_size, sequence_length + 1, 10, 4]

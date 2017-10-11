@@ -74,6 +74,58 @@ def interval_actions(epoch, step, globalstep,
         #        validation_loop(sess, tensors, input_handles, train_writer, globalstep)
 
 
+def generate_cls_gt(input_pipeline_out, frcnn_out):
+    target_bbs = input_pipeline_out['target_bbs']
+
+    batch_size = target_bbs.shape[0]
+    sequence_size = target_bbs.shape[1]
+    PLAYERS = 10
+
+    # The groundtruth bbs with shape (batch_size, backprop_step_size, PLAYERS=10, 4).
+    target_bbs = np.reshape(target_bbs, (batch_size, sequence_size, PLAYERS, 4))
+
+    # The RPs with shape (batch_size, sequence_length, PLAYERS=10, 4).
+    rp_bbs = frcnn_out
+
+    # The groundtruth for the classifier with shape ().
+    # Each RP bb is one of the following classes: t from [0, 1, ..., PLAYERS=10].
+    # 0 means take LSTM prediction.
+    target_cls = np.zeros((batch_size, sequence_size, PLAYERS))
+
+    threshold = 0.8
+
+    for b in range(batch_size):
+        for s in range(sequence_size):
+            # Shape (10, 4).
+            current_gt_bbs = target_bbs[b, s]
+
+            # Shape (10, 4).
+            current_rp_bbs = rp_bbs[b, s]
+
+            # Iterate through all rp bbs in this image.
+            for i in range(PLAYERS):
+                # Shape (4) in format [ymin, xmin, ymax, xmax].
+                current_rp_bb = current_rp_bbs[i]
+
+                ious = np.zeros(PLAYERS)
+
+                # Iterate through all gt bbs in this image.
+                for j in range(PLAYERS):
+                    # Shape (4) in format [x, y, w, h].
+                    current_gt_bb = current_gt_bbs[j]
+
+                    ious[j] = util.helper.iou(current_gt_bb,
+                                              util.helper.ymin_xmin_ymax_xmax_to_xywh(current_rp_bb))
+
+                index = np.argmax(ious)
+                if ious[index] >= threshold:
+                    target_cls[b, s, i] = index + 1
+                else:
+                    target_cls[b, s, i] = 0
+
+    return target_cls
+
+
 def run(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, frcnn, validate=True):
     """
     tensors is a dict with the following keys:
@@ -121,11 +173,21 @@ def run(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, fr
 
             frcnn_out, frcnn_time = predict_frcnn(input_pipeline_out['images'], frcnn)
 
-            lstm_out, summary_out, train_time = train(sess, tensors, input_pipeline_out, frcnn_out)
+            target_cls = generate_cls_gt(input_pipeline_out, frcnn_out)
 
-            interval_actions(epoch, step, globalstep,
-                             input_time, train_time, 0,
-                             lstm_out['total_loss'], train_writer, summary_out)
+            pass
+
+            util.helper.draw_bb_and_cls_labels_and_save(input_pipeline_out['images'][0, 0],
+                                                        frcnn_out[0, 0],
+                                                        input_pipeline_out['target_bbs'][0, 0],
+                                                        target_cls[0, 0],
+                                                        '0_0')
+
+            # lstm_out, summary_out, train_time = train(sess, tensors, input_pipeline_out, frcnn_out)
+            #
+            # interval_actions(epoch, step, globalstep,
+            #                  input_time, train_time, 0,
+            #                  lstm_out['total_loss'], train_writer, summary_out)
 
             step += 1
             globalstep += 1
