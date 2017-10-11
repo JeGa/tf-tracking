@@ -92,7 +92,7 @@ def generate_cls_gt(input_pipeline_out, frcnn_out):
     # 0 means take LSTM prediction.
     target_cls = np.zeros((batch_size, sequence_size, PLAYERS))
 
-    threshold = 0.8
+    threshold = 0.6
 
     for b in range(batch_size):
         for s in range(sequence_size):
@@ -175,11 +175,9 @@ def run(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, fr
 
             target_cls = generate_cls_gt(input_pipeline_out, frcnn_out)
 
-            pass
-
             util.helper.draw_bb_and_cls_labels_and_save(input_pipeline_out['images'][0, 0],
                                                         frcnn_out[0, 0],
-                                                        input_pipeline_out['target_bbs'][0, 0],
+                                                        np.reshape(input_pipeline_out['target_bbs'][0, 0], (10, 4)),
                                                         target_cls[0, 0],
                                                         '0_0')
 

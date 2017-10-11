@@ -117,7 +117,7 @@ def draw_bb_and_cls_labels_and_save(image, rp_bbs, gt_bbs, labels, filename):
     height = image.shape[0]
     width = image.shape[1]
 
-    img = Image.fromarray(image.astype(np.uint8))
+    img = Image.fromarray((image * 255).astype(np.uint8))
     draw = ImageDraw.Draw(img)
 
     # Over all bbs.
@@ -128,7 +128,7 @@ def draw_bb_and_cls_labels_and_save(image, rp_bbs, gt_bbs, labels, filename):
         # Wants [x0, y0, x1, y1].
         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(gt_bb)
         draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='red')
-        draw.text([xmin, ymin - 10], str(i), fill='red')
+        draw.text([xmin * width, ymin * height - 10], str(i + 1), fill='red')
 
     for i in range(rp_bbs.shape[0]):
         rp_label = labels[i]
@@ -136,7 +136,7 @@ def draw_bb_and_cls_labels_and_save(image, rp_bbs, gt_bbs, labels, filename):
 
         # Wants [x0, y0, x1, y1].
         draw.rectangle([rp_bb[1] * width, rp_bb[0] * height, rp_bb[3] * width, rp_bb[2] * height], outline='blue')
-        draw.text([rp_bb[1], rp_bb[0] - 10], str(rp_label[i]), fill='blue')
+        draw.text([rp_bb[1] * width + 20, rp_bb[0] * height - 10], str(int(rp_label)))
 
     file = os.path.normpath(os.path.join(global_config.cfg['results'], 'cls_gt'))
     img.save(file + '_' + filename + '.jpg')
