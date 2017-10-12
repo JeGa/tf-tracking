@@ -103,13 +103,77 @@ def debug():
 
 
 def draw_allbbs_and_cls_labels_and_save(
+        image,
         reg_targets,
         reg_predictions,
         region_proposals,
         cls_targets,
         cls_predictions,
         filename):
-    pass
+    """
+    :param image: Shape (height, width, 3).
+    :param reg_targets: Shape (10, 4). Format [x, y, w, h].
+    :param reg_predictions: Shape (10, 4). Format [x, y, w, h].
+    :param region_proposals: Shape (10, 4). Format [ymin, xmin, ymax, xmax].
+    :param cls_targets: Shape (10).
+    :param cls_predictions: Shape (10, 11).
+    :param filename: String.
+    """
+    height = image.shape[0]
+    width = image.shape[1]
+
+    img = Image.fromarray((image * 255).astype(np.uint8))
+    draw = ImageDraw.Draw(img)
+
+    players = reg_targets.shape[0]
+
+    # draw.rectangle wants [x0, y0, x1, y1].
+
+    # gt bbs.
+    for i in range(players):
+        gt_bb = reg_targets[i]
+
+        xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(gt_bb)
+        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='red')
+        draw.text([xmin * width, ymin * height - 10], str(i + 1), fill='red')
+
+    # rps.
+    for i in range(players):
+        rp_bb = region_proposals[i]
+        gt_label = cls_targets[i]
+
+        draw.rectangle([rp_bb[1] * width, rp_bb[0] * height, rp_bb[3] * width, rp_bb[2] * height], outline='green')
+        draw.text([rp_bb[1] * width + 20, rp_bb[0] * height - 10], str(int(gt_label)), fill='green')
+
+    # lstm
+    for i in range(players):
+        pred_bb = reg_predictions[i]
+
+        xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(pred_bb)
+        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
+
+    # The predicted bb.
+    for i in range(players):
+        pred_label = np.argmax(cls_predictions[i])
+
+        # Take lstm prediction from player i.
+        if pred_label == 0:
+            xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(reg_predictions[i])
+            draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='yellow')
+            draw.text([xmin * width + 40, ymin * height - 10], str(i + 1), fill='yellow')
+        # Take rp from player pred_label.
+        else:
+            rp_bb = region_proposals[pred_label - 1]
+            draw.rectangle([rp_bb[1] * width, rp_bb[0] * height, rp_bb[3] * width, rp_bb[2] * height], outline='yellow')
+            draw.text([rp_bb[1] * width + 40, rp_bb[0] * height - 10], str(i), fill='yellow')
+
+    draw.text([10, 10], 'groundtruth_bb', fill='red')
+    draw.text([10, 20], 'region_proposal', fill='green')
+    draw.text([10, 30], 'lstm', fill='blue')
+    draw.text([10, 40], 'selected_tracking_bb', fill='yellow')
+
+    file = os.path.normpath(os.path.join(global_config.cfg['results'], 'prediction'))
+    img.save(file + '_' + filename + '.jpg')
 
 
 def draw_bb_and_cls_labels_and_save(image, rp_bbs, gt_bbs, labels, filename):

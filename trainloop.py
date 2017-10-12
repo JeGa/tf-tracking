@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import logging
+import os
 
 import util.helper
 import networks.player_classificator
@@ -67,7 +68,7 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls):
 # TODO
 def interval_actions(epoch, step, globalstep,
                      input_time, frcnn_time, train_time,
-                     loss, train_writer, summary):
+                     loss, train_writer, summary, saver, sess):
     # sequence_images, out_input_pipeline, out_frcnn, out_lstm):
     if step % 1 == 0:
         logging.info(
@@ -77,16 +78,12 @@ def interval_actions(epoch, step, globalstep,
     if step % global_config.cfg['summary_interval'] == 0:
         train_writer.add_summary(summary, globalstep)
 
-        # if step % global_config.cfg['result_interval'] == 0:
-        #     util.helper.draw_bb_and_save(sequence_images * 255,
-        #                                  np.reshape(out_input_pipeline['groundtruth_bbs'][0],
-        #                                             (sequence_images.shape[0], 10, 4)),
-        #                                  out_frcnn,
-        #                                  np.reshape(out_lstm['predictions'][0], (-1, 10, 4)))
+    if step % global_config.cfg['result_interval'] == 0:
+        pass
 
-        # if step % global_config.cfg['save_interval'] == 0:
-        #    saver.save(sess, os.path.join(global_config.cfg['checkpoints'], 'checkpoint'),
-        #               global_step=globalstep)
+    if step % global_config.cfg['save_interval'] == 0:
+        saver.save(sess, os.path.join(global_config.cfg['checkpoints'], 'checkpoint'),
+                   global_step=globalstep)
 
         # if validate:
         #    if globalstep % global_config.cfg['validation_interval'] == 0:
@@ -148,15 +145,24 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
 
             interval_actions(epoch, step, globalstep,
                              input_time, frcnn_time, train_time,
-                             out['total_loss'], train_writer, out['summary'])
+                             out['total_loss'], train_writer, out['summary'],
+                             saver, sess)
+
+            def cls_pred(predictions, batch, time):
+                classifications = np.zeros((10, 11))
+                for i in range(len(predictions)):
+                    classifications[i] = predictions[i][batch, time]
+                return classifications
 
             # Draw the predicted classification labels.
-            # util.helper.draw_allbbs_and_cls_labels_and_save(np.reshape(out['reg_targets'][0, 0], (10, 4)),
-            #                                                 out['last_lstm_predictions'][0, 0],
-            #                                                 frcnn_out[0, 0],
-            #                                                 out['cls_targets'][0, 0],
-            #                                                 out['cls_predictions'][0, 0],
-            #                                                 '0_0_pred')
+            if step % 5 == 0:
+                util.helper.draw_allbbs_and_cls_labels_and_save(input_pipeline_out['images'][0, 0],
+                                                                np.reshape(out['reg_targets'][0, 0], (10, 4)),
+                                                                np.reshape(out['last_lstm_predictions'][0, 0], (10, 4)),
+                                                                frcnn_out[0, 0],
+                                                                out['cls_targets'][0, 0],
+                                                                cls_pred(out['cls_predictions'], 0, 0),
+                                                                '0_0_pred')
 
             step += 1
             globalstep += 1
