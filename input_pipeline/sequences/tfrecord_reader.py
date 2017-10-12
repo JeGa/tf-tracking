@@ -67,8 +67,9 @@ def create_datasets(training_record_file, validation_record_file):
     return training_dataset, validation_dataset
 
 
-def read_graph(training_record_file, validation_record_file):
-    training_dataset, validation_dataset = create_datasets(training_record_file, validation_record_file)
+def build():
+    training_dataset, validation_dataset = create_datasets(global_config.cfg['input_data_training'],
+                                                           global_config.cfg['input_data_testing'])
 
     handle = tf.placeholder(tf.string, shape=[])
     iterator = tf.contrib.data.Iterator.from_string_handle(handle,

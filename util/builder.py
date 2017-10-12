@@ -1,10 +1,10 @@
 import tensorflow as tf
-import tensorflow.contrib.slim as slim
 
 import input_pipeline.sequences.tfrecord_reader
 import input_pipeline.sequences.placeholder
 import util.global_config as global_config
 import networks.lstm
+import networks.player_classificator
 
 
 def _format(input_data):
@@ -48,104 +48,91 @@ def bbdata_image(bbs, image, name):
 
 
 def add_summaries(tensors):
-    tf.summary.scalar('lstm_loss', tensors['lstm']['total_loss'])
+    tf.summary.scalar('lstm_loss', tensors['lstm']['loss'])
 
     batch = 0
     sequence_element = -1
 
     bbdata_image(tensors['lstm']['inputs'][batch][sequence_element],
-                 tensors['input_data_placeholders']['images'][batch][sequence_element],
+                 tensors['placeholders']['images'][batch][sequence_element],
                  'inputs')
 
     bbdata_image(tensors['lstm']['targets'][batch][sequence_element],
-                 tensors['input_data_placeholders']['images'][batch][sequence_element],
+                 tensors['placeholders']['images'][batch][sequence_element],
                  'targets')
 
     bbdata_image(tensors['lstm']['predictions'][batch][sequence_element],
-                 tensors['input_data_placeholders']['images'][batch][sequence_element],
+                 tensors['placeholders']['images'][batch][sequence_element],
                  'predictions')
 
     tensors['summary'] = tf.summary.merge_all()
 
 
-def build_network(inputs, targets):
-    total_loss, train_step, predictions = networks.lstm.build(inputs, targets,
-                                                              global_config.cfg['state_size'],
-                                                              global_config.cfg['lstm_layers'],
-                                                              learning_rate=global_config.cfg['learning_rate'])
+def build_network(inputs, targets, region_proposals, target_cls):
+    total_loss, train_step, lstm_predictions = networks.lstm.build(inputs, targets,
+                                                                   global_config.cfg['state_size'],
+                                                                   global_config.cfg['lstm_layers'],
+                                                                   learning_rate=global_config.cfg['learning_rate'])
 
-    region_proposals = tf.placeholder(tf.float32, shape=(global_config.cfg['batch_size'],
-                                                         global_config.cfg['backprop_step_size'],
-                                                         10, 4), name='frcnn_inputs')
-
-    # predictions Shape (batch_size, step_size, output_dimension).
-
-    current_region_proposals = tf.reshape(region_proposals, [global_config.cfg['batch_size'],
-                                                             global_config.cfg['backprop_step_size'],
-                                                             40])
-
-    start_region_proposal = tf.zeros((global_config.cfg['batch_size'], 1, 10, 4))
-    last_region_proposals = tf.concat([start_region_proposal, region_proposals[:, :-1]], axis=1)
-    last_region_proposals = tf.reshape(last_region_proposals, [global_config.cfg['batch_size'],
-                                                               global_config.cfg['backprop_step_size'],
-                                                               40])
-
-    start_lstm_prediction = tf.zeros((global_config.cfg['batch_size'], 1, 40))
-    lstm_predictions = tf.concat([start_lstm_prediction, predictions[:, :-1]], axis=1)
-
-    # Stack all into input vector for classificator.
-    cls_input = tf.concat([current_region_proposals, last_region_proposals, lstm_predictions], axis=2)
-
-    def classificators(cls_input):
-        with tf.name_scope('cls_fc'):
-            for j in range(10):
-                slim.fully_connected(cls_input)
-
-    # 1. lstm_predictions: [batch_size, sequence_length, 10, 4].
-    #       - Add zero vector to have [batch_size, sequence_length + 1, 10, 4]
-    #       - Optionally discard last vector.
-    # 2. region_proposals (placeholder): [batch_size = 1, sequence_length, 10, 4].
-    # 3. last_region_proposals: [batch_size = 1, sequence_length, 10, 4]
+    cls_input, last_region_proposals, last_lstm_predictions = networks.player_classificator.build(region_proposals,
+                                                                                                  lstm_predictions,
+                                                                                                  target_cls)
 
     lstm_tensors = {
         'inputs': inputs,
         'targets': targets,
-        'total_loss': total_loss,
+        'loss': total_loss,
         'train_step': train_step,
-        'predictions': predictions,
+        'predictions': lstm_predictions,
 
         'last_region_proposal': last_region_proposals,
-        'last_lstm_predictions': lstm_predictions
+        'last_lstm_predictions': last_lstm_predictions
     }
 
-    rpn_tensors = {
-        'region_proposals_placeholder': region_proposals
+    classifier_tensors = {
+        'inputs': cls_input,
+        'targets': target_cls,
+        'last_region_proposals': last_region_proposals,
+        'last_lstm_predictions': last_lstm_predictions
     }
 
-    return lstm_tensors, rpn_tensors
+    return lstm_tensors, classifier_tensors
 
 
-def build():
-    # The bb coordinates and the images are normalized.
-    # TODO: Move parameters inside.
-    input_data, input_handles = input_pipeline.sequences.tfrecord_reader.read_graph(
-        global_config.cfg['input_data_training'],
-        global_config.cfg['input_data_testing'])
+def build_lstm_and_classifier():
+    input_data_placeholders = input_pipeline.sequences.placeholder.build_lstm_input()
+    target_cls_placeholder = input_pipeline.sequences.placeholder.build_cls_labels()
+    region_proposals = input_pipeline.sequences.placeholder.rps()
 
-    input_data_placeholders = input_pipeline.sequences.placeholder.build()
-
+    # This builds the lstm and the classifier network.
     with tf.variable_scope('model'):
-        lstm_tensors, rpn_tensors = build_network(input_data_placeholders['groundtruth_bbs'],
-                                                  input_data_placeholders['target_bbs'])
+        lstm_tensors, classifier_tensors = build_network(input_data_placeholders['groundtruth_bbs'],
+                                                         input_data_placeholders['target_bbs'],
+                                                         region_proposals,
+                                                         target_cls_placeholder)
 
     tensors = {
-        'input_data': input_data,
+        'placeholders': {
+            'groundtruth_bbs': input_data_placeholders['groundtruth_bbs'],
+            'target_bbs': input_data_placeholders['target_bbs'],
+            'images': input_data_placeholders['images'],
 
-        'input_data_placeholders': input_data_placeholders,
+            'target_cls': target_cls_placeholder,
+            'region_proposals': region_proposals
+        },
+
         'lstm': lstm_tensors,
-        'rpn': rpn_tensors
+        'cls': classifier_tensors
     }
 
+    # Adds 'summary' to tensor.
     add_summaries(tensors)
 
-    return tensors, input_handles
+    return tensors
+
+
+def build_input_pipeline():
+    # The bb coordinates and the images are normalized.
+    input_data, input_handles = input_pipeline.sequences.tfrecord_reader.build()
+
+    return input_data, input_handles

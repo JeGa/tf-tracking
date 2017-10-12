@@ -14,7 +14,7 @@ import networks.faster_rcnn_odapi_loader
 logging.basicConfig(level=logging.INFO)
 
 
-def loop(sess, tensors, input_handles, frcnn):
+def loop(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
     filename = util.helper.summary_file([global_config.cfg['batch_size'],
                                          global_config.cfg['epochs']])
     train_writer = tf.summary.FileWriter(filename, sess.graph)
@@ -24,7 +24,8 @@ def loop(sess, tensors, input_handles, frcnn):
     globalstep = 0
     with util.helper.timeit() as ttime:
         for epoch in range(global_config.cfg['epochs']):
-            globalstep = trainloop.run(sess, tensors, input_handles, train_writer, epoch, saver, globalstep, frcnn)
+            globalstep = trainloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
+                                       train_writer, epoch, saver, globalstep, frcnn)
     logging.info('Done training (' + str(ttime.time()) + ' sec, ' + str(globalstep) + ' steps).')
 
 
@@ -41,7 +42,8 @@ def main(config):
 
     with tf.Graph().as_default():
         # Build the computational graph.
-        tensors, input_handles = util.builder.build()
+        input_pipeline_tensors, input_handles = util.builder.build_input_pipeline()
+        network_tensors = util.builder.build_lstm_and_classifier()
 
         init_op = tf.group(tf.global_variables_initializer(),
                            tf.local_variables_initializer())
@@ -60,7 +62,7 @@ def main(config):
                 'handle': input_handles['h']
             }
 
-            loop(sess, tensors, input_handles_eval, frcnn)
+            loop(sess, input_pipeline_tensors, input_handles_eval, network_tensors, frcnn)
 
 
 if __name__ == '__main__':
