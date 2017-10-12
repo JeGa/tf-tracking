@@ -102,6 +102,16 @@ def debug():
     sys.exit()
 
 
+def draw_allbbs_and_cls_labels_and_save(
+        reg_targets,
+        reg_predictions,
+        region_proposals,
+        cls_targets,
+        cls_predictions,
+        filename):
+    pass
+
+
 def draw_bb_and_cls_labels_and_save(image, rp_bbs, gt_bbs, labels, filename):
     """
     NOTE: The groundtruth are always correctly sorted.

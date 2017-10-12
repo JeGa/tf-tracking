@@ -4,6 +4,7 @@ import logging
 
 import util.helper
 import networks.player_classificator
+import util.global_config as global_config
 
 
 # If you want to run only the input data reading part.
@@ -32,18 +33,35 @@ def predict_frcnn(sequence_images, frcnn):
     return frcnn_out, frcnn_time.time()
 
 
-# TODO
 # Train the lstm with input data given as feed_dict.
-def train(sess, tensors, input_pipeline_out, frcnn_out):
+def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls):
+    input_tensors = {
+        'train_step': tensors['combined']['train_step'],
+        'total_loss': tensors['combined']['loss'],
+
+        'cls_inputs': tensors['cls']['inputs'],
+        'cls_targets': tensors['cls']['targets'],
+        # This is a list.
+        'cls_predictions': tensors['cls']['predictions'],
+        # Shifted lstm pred. from 'lstm' part.
+        'last_lstm_predictions': tensors['cls']['last_lstm_predictions'],
+
+        'reg_targets': tensors['lstm']['targets'],
+
+        'summary': tensors['summary']
+    }
+
     with util.helper.timeit() as train_time:
-        train_lstm_out, summary_out = sess.run([tensors['lstm'], tensors['summary']], feed_dict={
+        out = sess.run(input_tensors, feed_dict={
             tensors['placeholders']['groundtruth_bbs']: input_pipeline_out['groundtruth_bbs'],
             tensors['placeholders']['target_bbs']: input_pipeline_out['target_bbs'],
             tensors['placeholders']['images']: input_pipeline_out['images'],
 
-            tensors['placeholders']['region_proposals']: frcnn_out
+            tensors['placeholders']['region_proposals']: frcnn_out,
+            tensors['placeholders']['target_cls']: target_cls
         })
-    return train_lstm_out, summary_out, train_time.time()
+
+    return out, train_time.time()
 
 
 # TODO
@@ -56,8 +74,8 @@ def interval_actions(epoch, step, globalstep,
             'Epoch %d, step %d, global step %d (%.3f/%.3f/%.3f sec input/frcnn_predict/train). Loss %.3f.' % (
                 epoch, step, globalstep, input_time, frcnn_time, train_time, loss))
 
-        # if step % global_config.cfg['summary_interval'] == 0:
-        #   train_writer.add_summary(summary, globalstep)
+    if step % global_config.cfg['summary_interval'] == 0:
+        train_writer.add_summary(summary, globalstep)
 
         # if step % global_config.cfg['result_interval'] == 0:
         #     util.helper.draw_bb_and_save(sequence_images * 255,
@@ -119,17 +137,26 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
             # Shape (batch_size, sequence_size, 10).
             target_cls = networks.player_classificator.generate_cls_gt(input_pipeline_out, frcnn_out)
 
+            # Draw the gt labels.
             # util.helper.draw_bb_and_cls_labels_and_save(input_pipeline_out['images'][0, 0],
             #                                             frcnn_out[0, 0],
             #                                             np.reshape(input_pipeline_out['target_bbs'][0, 0], (10, 4)),
             #                                             target_cls[0, 0],
-            #                                             '0_0')
+            #                                             '0_0_gt')
 
-            lstm_out, summary_out, train_time = train(sess, network_tensors, input_pipeline_out, frcnn_out)
+            out, train_time = train(sess, network_tensors, input_pipeline_out, frcnn_out, target_cls)
 
             interval_actions(epoch, step, globalstep,
                              input_time, frcnn_time, train_time,
-                             lstm_out['loss'], train_writer, summary_out)
+                             out['total_loss'], train_writer, out['summary'])
+
+            # Draw the predicted classification labels.
+            # util.helper.draw_allbbs_and_cls_labels_and_save(np.reshape(out['reg_targets'][0, 0], (10, 4)),
+            #                                                 out['last_lstm_predictions'][0, 0],
+            #                                                 frcnn_out[0, 0],
+            #                                                 out['cls_targets'][0, 0],
+            #                                                 out['cls_predictions'][0, 0],
+            #                                                 '0_0_pred')
 
             step += 1
             globalstep += 1

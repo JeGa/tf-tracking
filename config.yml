@@ -25,12 +25,12 @@ resize_width: 854
 batch_size: 1
 epochs: 5000
 backprop_step_size: 30 # Defines the width of the unrolled rnn graph.
-learning_rate: 0.0015
+learning_rate: 0.001
 
 # TODO: Unused.
 lstm_layers: 1
 state_size: 1500
 
 lstm_cls_layers: 1
-lstm_cls_state_size: 1000
+lstm_cls_state_size: 1500
 lstm_cls_learning_rate: 0.001

@@ -92,17 +92,16 @@ def _shapeinfo(cls_input, cls_target):
     step_size = input_shape[1]
     input_dimension = input_shape[2]
 
-    output_dimension = cls_target.get_shape()[2]
-
-    return batch_size, step_size, input_dimension, output_dimension
+    return batch_size, step_size, input_dimension
 
 
 def network(cls_input, cls_target, state_size, num_layers=1, learning_rate=0.001):
     """
     :param cls_input: Shape (batch_size, sequence_size, 40 * 3).
-    :param cls_target: Shape (batch_size, sequence_size, 10 + 1).
+    :param cls_target: Shape (batch_size, sequence_size, 10). NOTE: This means 10 classificators.
     """
-    batch_size, step_size, input_dimension, output_dimension = _shapeinfo(cls_input, cls_target)
+
+    batch_size, step_size, input_dimension = _shapeinfo(cls_input, cls_target)
 
     multirnn_cell = tf.nn.rnn_cell.MultiRNNCell([tf.nn.rnn_cell.BasicLSTMCell(state_size) for _ in range(num_layers)])
 
@@ -111,27 +110,58 @@ def network(cls_input, cls_target, state_size, num_layers=1, learning_rate=0.001
     # rnn_outputs is of shape (batch_size, step_size, state_size), final_state is a tuple with c_state and h_state.
     rnn_outputs, final_state = tf.nn.dynamic_rnn(multirnn_cell, cls_input, initial_state=init_state)
 
-    with tf.variable_scope('classificator'):
-        W = tf.get_variable('W', [state_size, output_dimension])
-        b = tf.get_variable('b', [output_dimension], initializer=tf.constant_initializer(0.0))
+    # Create classifier for each player.
+    PLAYERS = 10
+    output_dimension = PLAYERS + 1
+
+    all_W = []
+    all_b = []
+
+    for i in range(PLAYERS):
+        with tf.variable_scope('classificator_player_' + str(i)):
+            W = tf.get_variable('W', [state_size, output_dimension])
+            b = tf.get_variable('b', [output_dimension], initializer=tf.constant_initializer(0.0))
+
+            all_W.append(W)
+            all_b.append(b)
+
+    all_logits = []
 
     with tf.name_scope('classificator'):
-        all = tf.reshape(rnn_outputs, [-1, state_size])
-        out = tf.matmul(all, W) + b
+        for i in range(PLAYERS):
+            all = tf.reshape(rnn_outputs, [-1, state_size])
+            out = tf.matmul(all, all_W[i]) + all_b[i]
 
-        predictions = tf.reshape(out, [batch_size.value, step_size.value, output_dimension.value])
+            predictions = tf.reshape(out, [batch_size.value, step_size.value, output_dimension])
 
-    with tf.name_scope('loss'):
-        total_loss = tf.reduce_mean(
-            tf.nn.sparse_softmax_cross_entropy_with_logits(logits=predictions, labels=tf.squeeze(cls_target)))
+            all_logits.append(predictions)
+
+    all_players_loss = []
+
+    for i in range(PLAYERS):
+        with tf.name_scope('loss_player_' + str(i)):
+            # Shape (batch_size, sequence_size, 10 + 1).
+            predictions = all_logits[i]
+
+            # Shape (batch_size, sequence_size). Values from 0 to 10.
+            labels = cls_target[:, :, i]
+
+            player_loss = tf.reduce_mean(
+                tf.nn.sparse_softmax_cross_entropy_with_logits(logits=predictions, labels=labels))
+
+            all_players_loss.append(player_loss)
+
+    total_loss = tf.add_n(all_players_loss)
 
     with tf.name_scope('training'):
         train_step = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
 
-    tf.summary.histogram('cls_state_hist', rnn_outputs)
-    tf.summary.histogram('cls_prediction_hist', predictions)
+    # Make predictions.
+    all_predictions = []
+    for i in range(PLAYERS):
+        all_predictions.append(tf.nn.softmax(all_logits[i]))
 
-    return total_loss, train_step, tf.nn.softmax(predictions)
+    return total_loss, train_step, all_predictions
 
 
 def build(region_proposals, lstm_predictions, cls_target):

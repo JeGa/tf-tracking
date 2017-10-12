@@ -48,7 +48,9 @@ def bbdata_image(bbs, image, name):
 
 
 def add_summaries(tensors):
-    tf.summary.scalar('lstm_loss', tensors['lstm']['loss'])
+    tf.summary.scalar('lstm_reg_loss', tensors['lstm']['loss'])
+    tf.summary.scalar('lstm_cls_loss', tensors['cls']['loss'])
+    tf.summary.scalar('total_loss', tensors['combined']['loss'])
 
     batch = 0
     sequence_element = -1
@@ -84,7 +86,7 @@ def build_network(inputs, targets, region_proposals, target_cls):
             target_cls)
 
     with tf.name_scope('total_loss'):
-        total_loss = 0.5 * lstm_cls_total_loss + 0.5 * lstm_cls_total_loss
+        total_loss = 0.5 * lstm_cls_total_loss + 0.5 * lstm_reg_total_loss
 
     with tf.name_scope('total_loss_training'):
         total_train_step = tf.train.AdagradOptimizer(global_config.cfg['learning_rate']).minimize(total_loss)
