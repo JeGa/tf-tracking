@@ -97,22 +97,50 @@ def _shapeinfo(cls_input, cls_target):
     return batch_size, step_size, input_dimension, output_dimension
 
 
-def network(cls_input, cls_target):
+def network(cls_input, cls_target, state_size, num_layers=1, learning_rate=0.001):
     """
     :param cls_input: Shape (batch_size, sequence_size, 40 * 3).
     :param cls_target: Shape (batch_size, sequence_size, 10 + 1).
     """
     batch_size, step_size, input_dimension, output_dimension = _shapeinfo(cls_input, cls_target)
-    pass
+
+    multirnn_cell = tf.nn.rnn_cell.MultiRNNCell([tf.nn.rnn_cell.BasicLSTMCell(state_size) for _ in range(num_layers)])
+
+    init_state = multirnn_cell.zero_state(batch_size, dtype=tf.float32)
+
+    # rnn_outputs is of shape (batch_size, step_size, state_size), final_state is a tuple with c_state and h_state.
+    rnn_outputs, final_state = tf.nn.dynamic_rnn(multirnn_cell, cls_input, initial_state=init_state)
+
+    with tf.variable_scope('classificator'):
+        W = tf.get_variable('W', [state_size, output_dimension])
+        b = tf.get_variable('b', [output_dimension], initializer=tf.constant_initializer(0.0))
+
+    with tf.name_scope('classificator'):
+        all = tf.reshape(rnn_outputs, [-1, state_size])
+        out = tf.matmul(all, W) + b
+
+        predictions = tf.reshape(out, [batch_size.value, step_size.value, output_dimension.value])
+
+    with tf.name_scope('loss'):
+        total_loss = tf.reduce_mean(
+            tf.nn.sparse_softmax_cross_entropy_with_logits(logits=predictions, labels=tf.squeeze(cls_target)))
+
+    with tf.name_scope('training'):
+        train_step = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
+
+    tf.summary.histogram('cls_state_hist', rnn_outputs)
+    tf.summary.histogram('cls_prediction_hist', predictions)
+
+    return total_loss, train_step, tf.nn.softmax(predictions)
 
 
 def build(region_proposals, lstm_predictions, cls_target):
     cls_input, last_region_proposals, last_lstm_predictions = arrange_classifier_inputs(region_proposals,
                                                                                         lstm_predictions)
 
-    # def classificators(cls_input):
-    #     with tf.name_scope('cls_fc'):
-    #         for j in range(10):
-    #             slim.fully_connected(cls_input)
+    total_loss, train_step, predictions = network(cls_input, cls_target,
+                                                  global_config.cfg['lstm_cls_state_size'],
+                                                  global_config.cfg['lstm_cls_layers'],
+                                                  global_config.cfg['lstm_cls_learning_rate'])
 
-    return cls_input, last_region_proposals, last_lstm_predictions
+    return cls_input, last_region_proposals, last_lstm_predictions, total_loss, train_step, predictions

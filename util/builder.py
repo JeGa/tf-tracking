@@ -69,21 +69,33 @@ def add_summaries(tensors):
 
 
 def build_network(inputs, targets, region_proposals, target_cls):
-    total_loss, train_step, lstm_predictions = networks.lstm.build(inputs, targets,
-                                                                   global_config.cfg['state_size'],
-                                                                   global_config.cfg['lstm_layers'],
-                                                                   learning_rate=global_config.cfg['learning_rate'])
+    with tf.variable_scope('lstm_bb_regressor'):
+        lstm_reg_total_loss, lstm_reg_train_step, lstm_reg_predictions = networks.lstm.build(
+            inputs, targets,
+            global_config.cfg['state_size'],
+            global_config.cfg['lstm_layers'],
+            learning_rate=global_config.cfg['learning_rate'])
 
-    cls_input, last_region_proposals, last_lstm_predictions = networks.player_classificator.build(region_proposals,
-                                                                                                  lstm_predictions,
-                                                                                                  target_cls)
+    with tf.variable_scope('lstm_bb_classificator'):
+        (cls_input, last_region_proposals, last_lstm_predictions,
+         lstm_cls_total_loss, lstm_cls_train_step, lstm_cls_predictions) = networks.player_classificator.build(
+            region_proposals,
+            lstm_reg_predictions,
+            target_cls)
+
+    with tf.name_scope('total_loss'):
+        total_loss = 0.5 * lstm_cls_total_loss + 0.5 * lstm_cls_total_loss
+
+    with tf.name_scope('total_loss_training'):
+        total_train_step = tf.train.AdagradOptimizer(global_config.cfg['learning_rate']).minimize(total_loss)
 
     lstm_tensors = {
         'inputs': inputs,
         'targets': targets,
-        'loss': total_loss,
-        'train_step': train_step,
-        'predictions': lstm_predictions,
+
+        'loss': lstm_reg_total_loss,
+        'train_step': lstm_reg_train_step,
+        'predictions': lstm_reg_predictions,
 
         'last_region_proposal': last_region_proposals,
         'last_lstm_predictions': last_lstm_predictions
@@ -92,11 +104,21 @@ def build_network(inputs, targets, region_proposals, target_cls):
     classifier_tensors = {
         'inputs': cls_input,
         'targets': target_cls,
+
+        'loss': lstm_cls_total_loss,
+        'train_step': lstm_cls_train_step,
+        'predictions': lstm_cls_predictions,
+
         'last_region_proposals': last_region_proposals,
         'last_lstm_predictions': last_lstm_predictions
     }
 
-    return lstm_tensors, classifier_tensors
+    combined_loss_tensors = {
+        'loss': total_loss,
+        'train_step': total_train_step
+    }
+
+    return lstm_tensors, classifier_tensors, combined_loss_tensors
 
 
 def build_lstm_and_classifier():
@@ -106,10 +128,11 @@ def build_lstm_and_classifier():
 
     # This builds the lstm and the classifier network.
     with tf.variable_scope('model'):
-        lstm_tensors, classifier_tensors = build_network(input_data_placeholders['groundtruth_bbs'],
-                                                         input_data_placeholders['target_bbs'],
-                                                         region_proposals,
-                                                         target_cls_placeholder)
+        lstm_tensors, classifier_tensors, combined_loss_tensors = build_network(
+            input_data_placeholders['groundtruth_bbs'],
+            input_data_placeholders['target_bbs'],
+            region_proposals,
+            target_cls_placeholder)
 
     tensors = {
         'placeholders': {
@@ -122,7 +145,8 @@ def build_lstm_and_classifier():
         },
 
         'lstm': lstm_tensors,
-        'cls': classifier_tensors
+        'cls': classifier_tensors,
+        'combined': combined_loss_tensors
     }
 
     # Adds 'summary' to tensor.

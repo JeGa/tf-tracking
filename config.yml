@@ -30,3 +30,7 @@ learning_rate: 0.0015
 # TODO: Unused.
 lstm_layers: 1
 state_size: 1500
+
+lstm_cls_layers: 1
+lstm_cls_state_size: 1000
+lstm_cls_learning_rate: 0.001
