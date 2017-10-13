@@ -48,6 +48,7 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls):
         'last_lstm_predictions': tensors['cls']['last_lstm_predictions'],
 
         'reg_targets': tensors['lstm']['targets'],
+        'reg_predictions': tensors['lstm']['predictions'],
 
         'summary': tensors['summary']
     }
@@ -65,7 +66,6 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls):
     return out, train_time.time()
 
 
-# TODO
 def interval_actions(epoch, step, globalstep,
                      input_time, frcnn_time, train_time,
                      loss, train_writer, summary, saver, sess):
@@ -156,13 +156,15 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
 
             # Draw the predicted classification labels.
             if step % 5 == 0:
-                util.helper.draw_allbbs_and_cls_labels_and_save(input_pipeline_out['images'][0, 0],
-                                                                np.reshape(out['reg_targets'][0, 0], (10, 4)),
-                                                                np.reshape(out['last_lstm_predictions'][0, 0], (10, 4)),
-                                                                frcnn_out[0, 0],
-                                                                out['cls_targets'][0, 0],
-                                                                cls_pred(out['cls_predictions'], 0, 0),
-                                                                '0_0_pred')
+                for s in range(input_pipeline_out['images'].shape[1]):
+                    util.helper.draw_allbbs_and_cls_labels_and_save(
+                        input_pipeline_out['images'][0, s],
+                        np.reshape(out['reg_targets'][0, s], (10, 4)),
+                        np.reshape(out['last_lstm_predictions'][0, s], (10, 4)),
+                        frcnn_out[0, s],
+                        out['cls_targets'][0, s],
+                        cls_pred(out['cls_predictions'], 0, s),
+                        'batch0_time' + str(s))
 
             step += 1
             globalstep += 1

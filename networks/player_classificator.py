@@ -48,11 +48,12 @@ def generate_cls_gt(input_pipeline_out, frcnn_out):
                     ious[j] = util.helper.iou(current_gt_bb,
                                               util.helper.ymin_xmin_ymax_xmax_to_xywh(current_rp_bb))
 
+                # Get bb number of gt with highest iou.
                 index = np.argmax(ious)
                 if ious[index] >= threshold:
-                    target_cls[b, s, i] = index + 1
+                    target_cls[b, s, index] = i + 1
                 else:
-                    target_cls[b, s, i] = 0
+                    target_cls[b, s, index] = 0
 
     return target_cls
 

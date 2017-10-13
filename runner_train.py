@@ -21,6 +21,14 @@ def loop(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
 
     saver = tf.train.Saver()
 
+    if global_config.cfg['restore']:
+        logging.info('Restoring from latest checkpoint.')
+        saver.restore(sess, tf.train.latest_checkpoint(global_config.cfg['checkpoints']))
+    else:
+        init_op = tf.group(tf.global_variables_initializer(),
+                           tf.local_variables_initializer())
+        sess.run(init_op)
+
     globalstep = 0
     with util.helper.timeit() as ttime:
         for epoch in range(global_config.cfg['epochs']):
@@ -32,7 +40,7 @@ def loop(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
 @click.command()
 @click.option("--config", default="config.yml", help="The configuration file.")
 def main(config):
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+    # os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
     # This makes the configuration available as global_config.cfg dictionary and makes the required folders.
     global_config.read(config)
@@ -45,11 +53,7 @@ def main(config):
         input_pipeline_tensors, input_handles = util.builder.build_input_pipeline()
         network_tensors = util.builder.build_lstm_and_classifier()
 
-        init_op = tf.group(tf.global_variables_initializer(),
-                           tf.local_variables_initializer())
-
         with tf.Session() as sess:
-            sess.run(init_op)
             training_handle = sess.run(input_handles['tr_h'])
             validation_handle = sess.run(input_handles['val_h'])
 

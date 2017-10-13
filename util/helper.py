@@ -140,7 +140,15 @@ def draw_allbbs_and_cls_labels_and_save(
     # rps.
     for i in range(players):
         rp_bb = region_proposals[i]
-        gt_label = cls_targets[i]
+
+        # Find i + 1 in the cls_targets list.
+        def findlabel(cls_targets, i):
+            for j in range(players):
+                if cls_targets[j] == i + 1:
+                    return j + 1
+            return 0
+
+        gt_label = findlabel(cls_targets, i)
 
         draw.rectangle([rp_bb[1] * width, rp_bb[0] * height, rp_bb[3] * width, rp_bb[2] * height], outline='green')
         draw.text([rp_bb[1] * width + 20, rp_bb[0] * height - 10], str(int(gt_label)), fill='green')
@@ -154,17 +162,22 @@ def draw_allbbs_and_cls_labels_and_save(
 
     # The predicted bb.
     for i in range(players):
+        # i = player id.
+
         pred_label = np.argmax(cls_predictions[i])
+
+        # Means: For player i take rp pred_label (if != 0) or take i-th lstm prediction.
 
         # Take lstm prediction from player i.
         if pred_label == 0:
             xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(reg_predictions[i])
-            draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='yellow')
+            draw.rectangle([xmin * width - 1, ymin * height - 1, xmax * width + 1, ymax * height + 1], outline='yellow')
             draw.text([xmin * width + 40, ymin * height - 10], str(i + 1), fill='yellow')
-        # Take rp from player pred_label.
+        # Take rp pred_label.
         else:
             rp_bb = region_proposals[pred_label - 1]
-            draw.rectangle([rp_bb[1] * width, rp_bb[0] * height, rp_bb[3] * width, rp_bb[2] * height], outline='yellow')
+            draw.rectangle([rp_bb[1] * width - 1, rp_bb[0] * height - 1, rp_bb[3] * width + 1, rp_bb[2] * height + 1],
+                           outline='yellow')
             draw.text([rp_bb[1] * width + 40, rp_bb[0] * height - 10], str(i), fill='yellow')
 
     draw.text([10, 10], 'groundtruth_bb', fill='red')

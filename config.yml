@@ -34,3 +34,5 @@ state_size: 1500
 lstm_cls_layers: 1
 lstm_cls_state_size: 1500
 lstm_cls_learning_rate: 0.001
+
+restore: no
