@@ -29,7 +29,9 @@ def predict_frcnn(sequence_images, frcnn):
     with util.helper.timeit() as frcnn_time:
         for i in range(batch_size):
             for j in range(sequence_length):
-                frcnn_out[i][j], _ = frcnn.predict((np.expand_dims(sequence_images[i][j], 0) * 255).astype(np.uint8))
+                bb, _ = frcnn.predict((np.expand_dims(sequence_images[i][j], 0) * 255).astype(np.uint8))
+                for k in range(10):
+                    frcnn_out[i][j][k] = util.helper.ymin_xmin_ymax_xmax_to_xywh(bb[k])
 
     return frcnn_out, frcnn_time.time()
 

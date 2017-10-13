@@ -114,7 +114,7 @@ def draw_allbbs_and_cls_labels_and_save(
     :param image: Shape (height, width, 3).
     :param reg_targets: Shape (10, 4). Format [x, y, w, h].
     :param reg_predictions: Shape (10, 4). Format [x, y, w, h].
-    :param region_proposals: Shape (10, 4). Format [ymin, xmin, ymax, xmax].
+    :param region_proposals: Shape (10, 4). Format [x, y, w, h].
     :param cls_targets: Shape (10).
     :param cls_predictions: Shape (10, 11).
     :param filename: String.
@@ -142,48 +142,55 @@ def draw_allbbs_and_cls_labels_and_save(
         rp_bb = region_proposals[i]
 
         # Find i + 1 in the cls_targets list.
-        def findlabel(cls_targets, i):
-            for j in range(players):
-                if cls_targets[j] == i + 1:
-                    return j + 1
-            return 0
+        # def findlabel(cls_targets, i):
+        #     for j in range(players):
+        #         if cls_targets[j] == i + 1:
+        #             return j + 1
+        #     return 0
+        #
+        # gt_label = findlabel(cls_targets, i)
 
-        gt_label = findlabel(cls_targets, i)
-
-        draw.rectangle([rp_bb[1] * width, rp_bb[0] * height, rp_bb[3] * width, rp_bb[2] * height], outline='green')
-        draw.text([rp_bb[1] * width + 20, rp_bb[0] * height - 10], str(int(gt_label)), fill='green')
+        xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(rp_bb)
+        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
+        draw.text([xmin * width + 20, ymin * height - 10], str(i + 1) + '-', fill='green')  # + str(int(gt_label)
 
     # lstm
-    for i in range(players):
-        pred_bb = reg_predictions[i]
-
-        xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(pred_bb)
-        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
-
-    # The predicted bb.
-    for i in range(players):
-        # i = player id.
-
-        pred_label = np.argmax(cls_predictions[i])
-
-        # Means: For player i take rp pred_label (if != 0) or take i-th lstm prediction.
-
-        # Take lstm prediction from player i.
-        if pred_label == 0:
-            xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(reg_predictions[i])
-            draw.rectangle([xmin * width - 1, ymin * height - 1, xmax * width + 1, ymax * height + 1], outline='yellow')
-            draw.text([xmin * width + 40, ymin * height - 10], str(i + 1), fill='yellow')
-        # Take rp pred_label.
-        else:
-            rp_bb = region_proposals[pred_label - 1]
-            draw.rectangle([rp_bb[1] * width - 1, rp_bb[0] * height - 1, rp_bb[3] * width + 1, rp_bb[2] * height + 1],
-                           outline='yellow')
-            draw.text([rp_bb[1] * width + 40, rp_bb[0] * height - 10], str(i), fill='yellow')
+    # for i in range(players):
+    #     pred_bb = reg_predictions[i]
+    #
+    #     xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(pred_bb)
+    #     draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
+    #
+    # # The predicted bb.
+    # for i in range(players):
+    #     # i = player id.
+    #
+    #     pred_label = np.argmax(cls_predictions[i])
+    #
+    #     # Means: For player i take rp pred_label (if != 0) or take i-th lstm prediction.
+    #
+    #     # Take lstm prediction from player i.
+    #     if pred_label == 0:
+    #         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(reg_predictions[i])
+    #         draw.rectangle([xmin * width - 1, ymin * height - 1, xmax * width + 1, ymax * height + 1], outline='yellow')
+    #         draw.text([xmin * width + 40, ymin * height - 10], str(i + 1), fill='yellow')
+    #     # Take rp pred_label.
+    #     else:
+    #         rp_bb = region_proposals[pred_label - 1]
+    #         draw.rectangle([rp_bb[1] * width - 1, rp_bb[0] * height - 1, rp_bb[3] * width + 1, rp_bb[2] * height + 1],
+    #                        outline='yellow')
+    #         draw.text([rp_bb[1] * width + 40, rp_bb[0] * height - 10], str(i), fill='yellow')
 
     draw.text([10, 10], 'groundtruth_bb', fill='red')
     draw.text([10, 20], 'region_proposal', fill='green')
     draw.text([10, 30], 'lstm', fill='blue')
     draw.text([10, 40], 'selected_tracking_bb', fill='yellow')
+
+    # Print predictions.
+    for i in range(players):
+        draw.text([10 + i * 20, height - 30], 'P' + str(i + 1))
+        draw.text([10 + i * 20, height - 20], str(cls_targets[i]))
+        draw.text([10 + i * 20, height - 10], str(np.argmax(cls_predictions[i])), fill='yellow')
 
     file = os.path.normpath(os.path.join(global_config.cfg['results'], 'prediction'))
     img.save(file + '_' + filename + '.jpg')
@@ -252,6 +259,7 @@ def ymin_xmin_ymax_xmax_to_xywh(bb):
     return [x, y, w, h]
 
 
+# TODO: util.helper.iou([0.778, 0.63, 0.05, 0.2], [0.597, 0.359, 0.0467, 0.173])
 def iou(bb1, bb2):
     """
     :param bb1: Format [x, y, w, h].
@@ -272,9 +280,15 @@ def iou(bb1, bb2):
         return 0
 
     xmin_i = max([xmin0, xmin1])
+
     ymin_i = max([ymin0, ymin1])
+
     xmax_i = min([xmax0, xmax1])
+
     ymax_i = min([ymax0, ymax1])
+
+    if xmax_i < xmin_i or ymax_i < ymin_i:
+        return 0
 
     intersection_area = (xmax_i - xmin_i) * (ymax_i - ymin_i)
 
@@ -284,3 +298,9 @@ def iou(bb1, bb2):
     if iou < 0:
         return 0
     return iou
+
+
+def abscoord(bb, width, height):
+    x, y, w, h = bb
+
+    return [x * width, y * height, w * width, h * height]

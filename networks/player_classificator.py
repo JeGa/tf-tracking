@@ -18,42 +18,41 @@ def generate_cls_gt(input_pipeline_out, frcnn_out):
     # The RPs with shape (batch_size, sequence_length, PLAYERS=10, 4).
     rp_bbs = frcnn_out
 
-    # The groundtruth for the classifier with shape ().
+    # The groundtruth for the PLAYERS=10 classifier with shape (batch_size, sequence_size, PLAYERS).
     # Each RP bb is one of the following classes: t from [0, 1, ..., PLAYERS=10].
     # 0 means take LSTM prediction.
-    target_cls = np.zeros((batch_size, sequence_size, PLAYERS))
+    target_cls = np.ones((batch_size, sequence_size, PLAYERS)) * -1
 
     threshold = 0.6
 
     for b in range(batch_size):
         for s in range(sequence_size):
+            # For the current image.
+
             # Shape (10, 4).
             current_gt_bbs = target_bbs[b, s]
 
             # Shape (10, 4).
             current_rp_bbs = rp_bbs[b, s]
 
-            # Iterate through all rp bbs in this image.
+            # Go through all players.
             for i in range(PLAYERS):
-                # Shape (4) in format [ymin, xmin, ymax, xmax].
-                current_rp_bb = current_rp_bbs[i]
+                # GT for player i. Shape(4).
+                gtbb = current_gt_bbs[i]
 
                 ious = np.zeros(PLAYERS)
-
-                # Iterate through all gt bbs in this image.
+                # Is there a good region proposal?
                 for j in range(PLAYERS):
-                    # Shape (4) in format [x, y, w, h].
-                    current_gt_bb = current_gt_bbs[j]
+                    rpbb = current_rp_bbs[j]
 
-                    ious[j] = util.helper.iou(current_gt_bb,
-                                              util.helper.ymin_xmin_ymax_xmax_to_xywh(current_rp_bb))
+                    ious[j] = util.helper.iou(gtbb, rpbb)
 
-                # Get bb number of gt with highest iou.
+                # For player i, the rp bb with highes iou with gt is:
                 index = np.argmax(ious)
                 if ious[index] >= threshold:
-                    target_cls[b, s, index] = i + 1
+                    target_cls[b, s, i] = index + 1
                 else:
-                    target_cls[b, s, index] = 0
+                    target_cls[b, s, i] = 0
 
     return target_cls
 
