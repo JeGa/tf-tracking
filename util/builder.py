@@ -3,8 +3,8 @@ import tensorflow as tf
 import input_pipeline.sequences.tfrecord_reader
 import input_pipeline.sequences.placeholder
 import util.global_config as global_config
-import networks.lstm
-import networks.player_classificator
+import networks.bbreg_lstm
+import networks.cls_lstm
 
 
 def _format(input_data):
@@ -72,21 +72,24 @@ def add_summaries(tensors):
 
 def build_network(inputs, targets, region_proposals, target_cls):
     with tf.variable_scope('lstm_bb_regressor'):
-        lstm_reg_total_loss, lstm_reg_train_step, lstm_reg_predictions = networks.lstm.build(
+        lstm_reg_total_loss, lstm_reg_predictions = networks.bbreg_lstm.build(
             inputs, targets,
             global_config.cfg['state_size'],
-            global_config.cfg['lstm_layers'],
-            learning_rate=global_config.cfg['learning_rate'])
+            global_config.cfg['lstm_layers'])
 
     with tf.variable_scope('lstm_bb_classificator'):
         (cls_input, last_region_proposals, last_lstm_predictions,
-         lstm_cls_total_loss, lstm_cls_train_step, lstm_cls_predictions) = networks.player_classificator.build(
+         lstm_cls_total_loss, lstm_cls_predictions) = networks.cls_lstm.build(
             region_proposals,
             lstm_reg_predictions,
             target_cls)
 
+    with tf.variable_scope('total_loss_weights'):
+        cls_weight = tf.placeholder(tf.float32, shape=())
+        reg_weight = tf.placeholder(tf.float32, shape=())
+
     with tf.name_scope('total_loss'):
-        total_loss = 0.5 * lstm_cls_total_loss + 0.5 * lstm_reg_total_loss
+        total_loss = cls_weight * lstm_cls_total_loss + reg_weight * lstm_reg_total_loss
 
     with tf.name_scope('total_loss_training'):
         total_train_step = tf.train.AdagradOptimizer(global_config.cfg['learning_rate']).minimize(total_loss)
@@ -96,7 +99,6 @@ def build_network(inputs, targets, region_proposals, target_cls):
         'targets': targets,
 
         'loss': lstm_reg_total_loss,
-        'train_step': lstm_reg_train_step,
         'predictions': lstm_reg_predictions,
 
         'last_region_proposal': last_region_proposals,
@@ -108,7 +110,6 @@ def build_network(inputs, targets, region_proposals, target_cls):
         'targets': target_cls,
 
         'loss': lstm_cls_total_loss,
-        'train_step': lstm_cls_train_step,
         'predictions': lstm_cls_predictions,
 
         'last_region_proposals': last_region_proposals,
@@ -117,7 +118,10 @@ def build_network(inputs, targets, region_proposals, target_cls):
 
     combined_loss_tensors = {
         'loss': total_loss,
-        'train_step': total_train_step
+        'train_step': total_train_step,
+
+        'cls_weight': cls_weight,
+        'reg_weight': reg_weight
     }
 
     return lstm_tensors, classifier_tensors, combined_loss_tensors

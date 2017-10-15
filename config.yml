@@ -16,7 +16,7 @@ summary_interval: 1
 result_interval: 10
 
 # TODO: Unused.
-save_interval: 200
+save_interval: 50
 validation_interval: 500
 
 resize_height: 480
@@ -25,15 +25,12 @@ resize_width: 854
 batch_size: 1
 epochs: 5000
 backprop_step_size: 30 # Defines the width of the unrolled rnn graph.
-learning_rate: 0.002
+learning_rate: 0.001
 
-lstm_layers: 1
-state_size: 1500
+lstm_layers: 3
+state_size: 800
 
-lstm_cls_layers: 1
-lstm_cls_state_size: 1500
-
-# TODO: Not used.
-lstm_cls_learning_rate: 0.001
+lstm_cls_layers: 3
+lstm_cls_state_size: 800
 
 restore: no
