@@ -1,3 +1,6 @@
+def run():
+    pass
+
 # def validation_loop(sess, tensors, input_handles, train_writer, globalstep):
 #     logging.info('Run validation.')
 #

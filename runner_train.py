@@ -30,10 +30,16 @@ def loop(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
         sess.run(init_op)
 
     globalstep = 0
+
+    cls_weight = 0.2
+    reg_weight = 0.8
+
     with util.helper.timeit() as ttime:
         for epoch in range(global_config.cfg['epochs']):
             globalstep = trainloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
-                                       train_writer, epoch, saver, globalstep, frcnn)
+                                       train_writer, epoch, saver, globalstep, frcnn,
+                                       cls_weight, reg_weight)
+
     logging.info('Done training (' + str(ttime.time()) + ' sec, ' + str(globalstep) + ' steps).')
 
 

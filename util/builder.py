@@ -92,7 +92,11 @@ def build_network(inputs, targets, region_proposals, target_cls):
         total_loss = cls_weight * lstm_cls_total_loss + reg_weight * lstm_reg_total_loss
 
     with tf.name_scope('total_loss_training'):
-        total_train_step = tf.train.AdagradOptimizer(global_config.cfg['learning_rate']).minimize(total_loss)
+        regvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'model/lstm_bb_regressor')
+        clsvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'model/lstm_bb_classificator')
+
+        total_train_step = tf.train.AdagradOptimizer(global_config.cfg['learning_rate']).minimize(total_loss,
+                                                                                                  var_list=[clsvars])
 
     lstm_tensors = {
         'inputs': inputs,

@@ -4,8 +4,13 @@ import logging
 import os
 
 import util.helper
-import networks.player_classificator
+import networks.cls_lstm
 import util.global_config as global_config
+import valloop
+
+# TODO: Hacky, Hacky.
+frcnn_out = None
+frcnn_time = None
 
 
 # If you want to run only the input data reading part.
@@ -37,7 +42,8 @@ def predict_frcnn(sequence_images, frcnn):
 
 
 # Train the lstm with input data given as feed_dict.
-def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls):
+def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls,
+          cls_weight=0.5, reg_weight=0.5):
     input_tensors = {
         'train_step': tensors['combined']['train_step'],
         'total_loss': tensors['combined']['loss'],
@@ -62,7 +68,10 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls):
             tensors['placeholders']['images']: input_pipeline_out['images'],
 
             tensors['placeholders']['region_proposals']: frcnn_out,
-            tensors['placeholders']['target_cls']: target_cls
+            tensors['placeholders']['target_cls']: target_cls,
+
+            tensors['combined']['cls_weight']: cls_weight,
+            tensors['combined']['reg_weight']: reg_weight
         })
 
     return out, train_time.time()
@@ -70,30 +79,31 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls):
 
 def interval_actions(epoch, step, globalstep,
                      input_time, frcnn_time, train_time,
-                     loss, train_writer, summary, saver, sess):
+                     loss, train_writer, summary, saver, sess, validate=True):
     # sequence_images, out_input_pipeline, out_frcnn, out_lstm):
-    if step % 1 == 0:
+    if globalstep % 1 == 0:
         logging.info(
             'Epoch %d, step %d, global step %d (%.3f/%.3f/%.3f sec input/frcnn_predict/train). Loss %.3f.' % (
                 epoch, step, globalstep, input_time, frcnn_time, train_time, loss))
 
-    if step % global_config.cfg['summary_interval'] == 0:
+    if globalstep % global_config.cfg['summary_interval'] == 0:
         train_writer.add_summary(summary, globalstep)
 
-    if step % global_config.cfg['result_interval'] == 0:
+    if globalstep % global_config.cfg['result_interval'] == 0:
         pass
 
-    if step % global_config.cfg['save_interval'] == 0:
+    if globalstep % global_config.cfg['save_interval'] == 0:
         saver.save(sess, os.path.join(global_config.cfg['checkpoints'], 'checkpoint'),
                    global_step=globalstep)
 
-        # if validate:
-        #    if globalstep % global_config.cfg['validation_interval'] == 0:
-        #        validation_loop(sess, tensors, input_handles, train_writer, globalstep)
+    if validate:
+        if globalstep % global_config.cfg['validation_interval'] == 0:
+            valloop.run()  # (sess, tensors, input_handles, train_writer, globalstep)
 
 
 def run(sess, input_pipeline_tensors, input_handles, network_tensors,
-        train_writer, epoch, saver, globalstep, frcnn, validate=True):
+        train_writer, epoch, saver, globalstep, frcnn,
+        cls_weight, reg_weight, validate=True):
     """
     input_pipeline_tensors.keys():
         'groundtruth_bbs'
@@ -131,19 +141,19 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
         try:
             input_pipeline_out, input_time = read_input(sess, input_pipeline_tensors, input_handles)
 
-            frcnn_out, frcnn_time = predict_frcnn(input_pipeline_out['images'], frcnn)
+            global frcnn_out
+            global frcnn_time
+
+            if frcnn_out is None:
+                frcnn_out, frcnn_time = predict_frcnn(input_pipeline_out['images'], frcnn)
+            else:
+                frcnn_time = 0
 
             # Shape (batch_size, sequence_size, 10).
-            target_cls = networks.player_classificator.generate_cls_gt(input_pipeline_out, frcnn_out)
+            target_cls = networks.cls_lstm.generate_cls_gt(input_pipeline_out, frcnn_out)
 
-            # Draw the gt labels.
-            # util.helper.draw_bb_and_cls_labels_and_save(input_pipeline_out['images'][0, 0],
-            #                                             frcnn_out[0, 0],
-            #                                             np.reshape(input_pipeline_out['target_bbs'][0, 0], (10, 4)),
-            #                                             target_cls[0, 0],
-            #                                             '0_0_gt')
-
-            out, train_time = train(sess, network_tensors, input_pipeline_out, frcnn_out, target_cls)
+            out, train_time = train(sess, network_tensors, input_pipeline_out, frcnn_out, target_cls,
+                                    cls_weight, reg_weight)
 
             interval_actions(epoch, step, globalstep,
                              input_time, frcnn_time, train_time,
@@ -157,7 +167,7 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
                 return classifications
 
             # Draw the predicted classification labels.
-            if step % 5 == 0:
+            if globalstep % 5 == 0:
                 for s in range(input_pipeline_out['images'].shape[1]):
                     util.helper.draw_allbbs_and_cls_labels_and_save(
                         input_pipeline_out['images'][0, s],

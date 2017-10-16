@@ -134,8 +134,8 @@ def draw_allbbs_and_cls_labels_and_save(
         gt_bb = reg_targets[i]
 
         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(gt_bb)
-        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='red')
-        draw.text([xmin * width, ymin * height - 10], str(i + 1), fill='red')
+        # draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='red')
+        # draw.text([xmin * width, ymin * height - 10], str(i + 1), fill='red')
 
     # rps.
     for i in range(players):
@@ -151,35 +151,35 @@ def draw_allbbs_and_cls_labels_and_save(
         # gt_label = findlabel(cls_targets, i)
 
         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(rp_bb)
-        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
-        draw.text([xmin * width + 20, ymin * height - 10], str(i + 1) + '-', fill='green')  # + str(int(gt_label)
+        # draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
+        # draw.text([xmin * width + 20, ymin * height - 10], str(i + 1) + '-', fill='green')  # + str(int(gt_label)
 
     # lstm
-    # for i in range(players):
-    #     pred_bb = reg_predictions[i]
-    #
-    #     xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(pred_bb)
-    #     draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
-    #
-    # # The predicted bb.
-    # for i in range(players):
-    #     # i = player id.
-    #
-    #     pred_label = np.argmax(cls_predictions[i])
-    #
-    #     # Means: For player i take rp pred_label (if != 0) or take i-th lstm prediction.
-    #
-    #     # Take lstm prediction from player i.
-    #     if pred_label == 0:
-    #         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(reg_predictions[i])
-    #         draw.rectangle([xmin * width - 1, ymin * height - 1, xmax * width + 1, ymax * height + 1], outline='yellow')
-    #         draw.text([xmin * width + 40, ymin * height - 10], str(i + 1), fill='yellow')
-    #     # Take rp pred_label.
-    #     else:
-    #         rp_bb = region_proposals[pred_label - 1]
-    #         draw.rectangle([rp_bb[1] * width - 1, rp_bb[0] * height - 1, rp_bb[3] * width + 1, rp_bb[2] * height + 1],
-    #                        outline='yellow')
-    #         draw.text([rp_bb[1] * width + 40, rp_bb[0] * height - 10], str(i), fill='yellow')
+    for i in range(players):
+        pred_bb = reg_predictions[i]
+
+        # xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(pred_bb)
+        # draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
+
+    # The predicted bb.
+    for i in range(players):
+        # i = player id.
+
+        pred_label = np.argmax(cls_predictions[i])
+
+        # Means: For player i take rp pred_label (if != 0) or take i-th lstm prediction.
+
+        # Take lstm prediction from player i.
+        if pred_label == 0:
+            xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(reg_predictions[i])
+            draw.rectangle([xmin * width - 1, ymin * height - 1, xmax * width + 1, ymax * height + 1], outline='yellow')
+            draw.text([xmin * width + 40, ymin * height - 10], str(i + 1), fill='yellow')
+        # Take rp pred_label.
+        else:
+            rp_bb = region_proposals[pred_label - 1]
+            xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(rp_bb)
+            draw.rectangle([xmin * width - 1, ymin * height - 1, xmax * width + 1, ymax * height + 1], outline='yellow')
+            draw.text([xmin * width + 40, ymin * height - 10], str(i + 1) + '-' + str(pred_label), fill='yellow')
 
     draw.text([10, 10], 'groundtruth_bb', fill='red')
     draw.text([10, 20], 'region_proposal', fill='green')

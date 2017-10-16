@@ -95,20 +95,25 @@ def _shapeinfo(cls_input, cls_target):
     return batch_size, step_size, input_dimension
 
 
-def network(cls_input, cls_target, state_size, num_layers=1, learning_rate=0.001):
+def network(cls_input, cls_target, state_size, num_layers=1):
     """
     :param cls_input: Shape (batch_size, sequence_size, 40 * 3).
     :param cls_target: Shape (batch_size, sequence_size, 10). NOTE: This means 10 classificators.
     """
-
     batch_size, step_size, input_dimension = _shapeinfo(cls_input, cls_target)
 
-    multirnn_cell = tf.nn.rnn_cell.MultiRNNCell([tf.nn.rnn_cell.BasicLSTMCell(state_size) for _ in range(num_layers)])
+    multirnn_cell_fw = tf.nn.rnn_cell.MultiRNNCell(
+        [tf.nn.rnn_cell.LSTMCell(state_size, use_peepholes=True) for _ in range(num_layers)])
+    multirnn_cell_bw = tf.nn.rnn_cell.MultiRNNCell(
+        [tf.nn.rnn_cell.LSTMCell(state_size, use_peepholes=True) for _ in range(num_layers)])
 
-    init_state = multirnn_cell.zero_state(batch_size, dtype=tf.float32)
+    # rnn_outputs = (output_fw, output_bw), each with shape (batch_size, step_size, state_size).
+    # final_states = (output_state_fw, output_state_bw), each a tuple with c_state and h_state.
+    rnn_outputs, final_states = tf.nn.bidirectional_dynamic_rnn(multirnn_cell_fw, multirnn_cell_bw, cls_input,
+                                                                dtype=tf.float32)
 
-    # rnn_outputs is of shape (batch_size, step_size, state_size), final_state is a tuple with c_state and h_state.
-    rnn_outputs, final_state = tf.nn.dynamic_rnn(multirnn_cell, cls_input, initial_state=init_state)
+    # Shape (batch_size, step_size, 2 * state_size).
+    rnn_outputs = tf.concat(rnn_outputs, axis=2)
 
     # Create classifier for each player.
     PLAYERS = 10
@@ -119,7 +124,7 @@ def network(cls_input, cls_target, state_size, num_layers=1, learning_rate=0.001
 
     for i in range(PLAYERS):
         with tf.variable_scope('classificator_player_' + str(i)):
-            W = tf.get_variable('W', [state_size, output_dimension])
+            W = tf.get_variable('W', [2 * state_size, output_dimension])
             b = tf.get_variable('b', [output_dimension], initializer=tf.constant_initializer(0.0))
 
             all_W.append(W)
@@ -129,7 +134,7 @@ def network(cls_input, cls_target, state_size, num_layers=1, learning_rate=0.001
 
     with tf.name_scope('classificator'):
         for i in range(PLAYERS):
-            all = tf.reshape(rnn_outputs, [-1, state_size])
+            all = tf.reshape(rnn_outputs, [-1, 2 * state_size])
             out = tf.matmul(all, all_W[i]) + all_b[i]
 
             predictions = tf.reshape(out, [batch_size.value, step_size.value, output_dimension])
@@ -153,24 +158,24 @@ def network(cls_input, cls_target, state_size, num_layers=1, learning_rate=0.001
 
     total_loss = tf.add_n(all_players_loss)
 
-    with tf.name_scope('training'):
-        train_step = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
+    # TODO
+    # with tf.name_scope('training'):
+    #   train_step = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
 
     # Make predictions.
     all_predictions = []
     for i in range(PLAYERS):
         all_predictions.append(tf.nn.softmax(all_logits[i]))
 
-    return total_loss, train_step, all_predictions
+    return total_loss, all_predictions
 
 
 def build(region_proposals, lstm_predictions, cls_target):
     cls_input, last_region_proposals, last_lstm_predictions = arrange_classifier_inputs(region_proposals,
                                                                                         lstm_predictions)
 
-    total_loss, train_step, predictions = network(cls_input, cls_target,
-                                                  global_config.cfg['lstm_cls_state_size'],
-                                                  global_config.cfg['lstm_cls_layers'],
-                                                  global_config.cfg['lstm_cls_learning_rate'])
+    total_loss, predictions = network(cls_input, cls_target,
+                                      global_config.cfg['lstm_cls_state_size'],
+                                      global_config.cfg['lstm_cls_layers'])
 
-    return cls_input, last_region_proposals, last_lstm_predictions, total_loss, train_step, predictions
+    return cls_input, last_region_proposals, last_lstm_predictions, total_loss, predictions
