@@ -78,6 +78,7 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
                     'predict_batch0_time' + str(s))
 
             step += 1
+            break  # TODO
 
         except tf.errors.OutOfRangeError:
             break

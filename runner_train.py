@@ -31,8 +31,8 @@ def loop(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
 
     globalstep = 0
 
-    cls_weight = 0.5
-    reg_weight = 0.5
+    cls_weight = global_config.cfg['cls_weigth']
+    reg_weight = global_config.cfg['reg_weigth']
 
     with util.helper.timeit() as ttime:
         for epoch in range(global_config.cfg['epochs']):
