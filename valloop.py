@@ -11,9 +11,7 @@ frcnn_out = None
 frcnn_time = None
 
 
-def run(sess, input_pipeline_tensors, input_handles, network_tensors,
-        train_writer, epoch, saver, globalstep, frcnn,
-        cls_weight, reg_weight):
+def run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
     sess.run(input_handles['validation_initializer'])
 
     step = 0
@@ -28,7 +26,7 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
             global frcnn_time
 
             if frcnn_out is None:
-                frcnn_out, frcnn_time = trainloop.predict_frcnn(input_pipeline_out['images'], frcnn)
+                frcnn_out, frcnn_time = util.network_io_utils.predict_frcnn(input_pipeline_out['images'], frcnn)
             else:
                 frcnn_time = 0
 
@@ -40,14 +38,10 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
 
             # The required shape.
             ordered_lstmreg_input = np.zeros((batch_size, sequence_length, 10, 4))
-
             ordered_last_region_proposals = np.zeros((batch_size, sequence_length, 10, 4))
 
             # Initialize.
             ordered_lstmreg_input[:, 0] = frcnn_out[:, 0, :, :]
-
-            # np.zeros((batch_size, 10, 4))
-            # ordered_lstmreg[:, 0] = np.zeros((batch_size, 10, 4))
 
             output_tensors = None
 

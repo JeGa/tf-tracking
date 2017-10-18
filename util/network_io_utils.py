@@ -70,3 +70,24 @@ def sort_rps(frcnn_out, ordered_last_region_proposals,
                     ordered_lstmreg_input[j, t + 1, i] = frcnn_out[j, t, predid - 1]
 
             ordered_last_region_proposals[j, t + 1] = ordered_lstmreg_input[j, t + 1]
+
+
+def predict_frcnn(sequence_images, frcnn):
+    """
+    Uses an own session for the rcnn graph.
+    """
+    batch_size = sequence_images.shape[0]
+    sequence_length = sequence_images.shape[1]
+
+    frcnn_out = np.zeros((batch_size,
+                          sequence_length,
+                          10, 4))
+
+    with util.helper.timeit() as frcnn_time:
+        for i in range(batch_size):
+            for j in range(sequence_length):
+                bb, _ = frcnn.predict((np.expand_dims(sequence_images[i][j], 0) * 255).astype(np.uint8))
+                for k in range(10):
+                    frcnn_out[i][j][k] = util.helper.ymin_xmin_ymax_xmax_to_xywh(bb[k])
+
+    return frcnn_out, frcnn_time.time()

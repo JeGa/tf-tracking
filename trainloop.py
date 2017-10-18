@@ -1,35 +1,17 @@
 import logging
 import os
-import numpy as np
+
 import tensorflow as tf
 
-import valloop
 import networks.cls_lstm
 import util.global_config as global_config
 import util.helper
 import util.network_io_utils
+import valloop
 
 # TODO: Hacky, Hacky.
 frcnn_out = None
 frcnn_time = None
-
-# Uses an own session for the rcnn graph.
-def predict_frcnn(sequence_images, frcnn):
-    batch_size = sequence_images.shape[0]
-    sequence_length = sequence_images.shape[1]
-
-    frcnn_out = np.zeros((batch_size,
-                          sequence_length,
-                          10, 4))
-
-    with util.helper.timeit() as frcnn_time:
-        for i in range(batch_size):
-            for j in range(sequence_length):
-                bb, _ = frcnn.predict((np.expand_dims(sequence_images[i][j], 0) * 255).astype(np.uint8))
-                for k in range(10):
-                    frcnn_out[i][j][k] = util.helper.ymin_xmin_ymax_xmax_to_xywh(bb[k])
-
-    return frcnn_out, frcnn_time.time()
 
 
 # Train the lstm with input data given as feed_dict.
@@ -72,7 +54,7 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls,
 
 def interval_actions(epoch, step, globalstep,
                      input_time, frcnn_time, train_time,
-                     loss, train_writer, summary, saver, sess, validate=True):
+                     loss, train_writer, summary, saver, sess):
     # sequence_images, out_input_pipeline, out_frcnn, out_lstm):
     if globalstep % 1 == 0:
         logging.info(
@@ -93,34 +75,6 @@ def interval_actions(epoch, step, globalstep,
 def run(sess, input_pipeline_tensors, input_handles, network_tensors,
         train_writer, epoch, saver, globalstep, frcnn,
         cls_weight, reg_weight, validate=True):
-    """
-    input_pipeline_tensors.keys():
-        'groundtruth_bbs'
-        'target_bbs'
-        'images'
-
-    network_tensors.keys():
-      'input_data_placeholders': {
-          'groundtruth_bbs': groundtruth_bbs,
-          'target_bbs': target_bbs,
-          'images': images
-      }
-      'lstm': {
-          'inputs': inputs,
-          'targets': targets,
-          'total_loss': total_loss,
-          'train_step': train_step,
-          'predictions': predictions
-      }
-      'summary'
-
-    input_handles.keys():
-          'training_initializer'
-          'validation_initializer'
-          'training_handle'
-          'validation_handle'
-          'handle'
-    """
     sess.run(input_handles['training_initializer'])
 
     step = 0
@@ -135,7 +89,7 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
             global frcnn_time
 
             if frcnn_out is None:
-                frcnn_out, frcnn_time = predict_frcnn(input_pipeline_out['images'], frcnn)
+                frcnn_out, frcnn_time = util.network_io_utils.predict_frcnn(input_pipeline_out['images'], frcnn)
             else:
                 frcnn_time = 0
 
@@ -153,26 +107,12 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
                              out['total_loss'], train_writer, out['summary'],
                              saver, sess)
 
-            # # Draw the predicted classification labels.
-            # if globalstep % 5 == 0:
-            #     for s in range(input_pipeline_out['images'].shape[1]):
-            #         util.helper.draw_allbbs_and_cls_labels_and_save(
-            #             input_pipeline_out['images'][0, s],
-            #             np.reshape(out['reg_targets'][0, s], (10, 4)),
-            #             np.reshape(out['last_lstm_predictions'][0, s], (10, 4)),
-            #             frcnn_out[0, s],
-            #             out['cls_targets'][0, s],
-            #             cls_pred(out['cls_predictions'], 0, s),
-            #             'train_batch0_time' + str(s))
-
-            # TODO: Put this into interval-actions and optimize parameters.
             if validate:
                 if globalstep % global_config.cfg['validation_interval'] == 0:
                     logging.info('**Start validation.**')
-                    valloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
-                                train_writer, epoch, saver, globalstep, frcnn,
-                                cls_weight, reg_weight)
+                    valloop.run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn)
                     logging.info('**Finished validation.**')
+
             step += 1
             globalstep += 1
         except tf.errors.OutOfRangeError:
