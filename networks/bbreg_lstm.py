@@ -53,10 +53,6 @@ def build(inputs, targets, state_size, num_layers=1):
     with tf.name_scope('loss'):
         total_loss = tf.reduce_mean(tf.nn.l2_loss(predictions - targets))
 
-    # TODO
-    # with tf.name_scope('training'):
-    #    train_step = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
-
     tf.summary.histogram('state_hist', rnn_outputs)
     tf.summary.histogram('prediction_hist', predictions)
 

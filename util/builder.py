@@ -96,6 +96,7 @@ def build_network(reg_inputs, reg_targets,
         regvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'model/lstm_bb_regressor')
         clsvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'model/lstm_bb_classificator')
 
+        # TODO
         total_train_step = tf.train.AdagradOptimizer(global_config.cfg['learning_rate']).minimize(total_loss,
                                                                                                   var_list=[clsvars])
 
