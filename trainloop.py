@@ -1,7 +1,7 @@
 import logging
 import os
-
 import tensorflow as tf
+import numpy as np
 
 import networks.cls_lstm
 import util.global_config as global_config
@@ -15,7 +15,7 @@ frcnn_time = None
 
 
 # Train the lstm with input data given as feed_dict.
-def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls,
+def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls, ordered_last_region_proposals,
           cls_weight=0.5, reg_weight=0.5):
     input_tensors = {
         'train_step': tensors['combined']['train_step'],
@@ -25,8 +25,6 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls,
         'cls_targets': tensors['cls']['targets'],
         # This is a list.
         'cls_predictions': tensors['cls']['predictions'],
-        # Shifted lstm pred. from 'lstm' part.
-        'last_lstm_predictions': tensors['cls']['last_lstm_predictions'],
 
         'reg_targets': tensors['lstm']['targets'],
         'reg_predictions': tensors['lstm']['predictions'],
@@ -42,7 +40,6 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls,
 
             tensors['placeholders']['region_proposals']: frcnn_out,
             tensors['placeholders']['target_cls']: target_cls,
-            # TODO !!!!!!!
             tensors['placeholders']['ordered_last_region_proposals']: ordered_last_region_proposals,
 
             tensors['combined']['cls_weight']: cls_weight,
@@ -99,7 +96,33 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
             # Shape (batch_size, sequence_size, 10).
             target_cls = networks.cls_lstm.generate_cls_gt(input_pipeline_out, frcnn_out)
 
+            # TODO: Does this even make sense???
+
+            # Generate ordered_last_region_proposals with shape (batch_size, sequence_length, 10, 4).
+            batch_size = global_config.cfg['batch_size']
+            sequence_length = global_config.cfg['backprop_step_size']
+
+            ordered_last_region_proposals = np.zeros((batch_size, sequence_length, 10, 4))
+            for t in range(sequence_length - 1):
+                for j in range(batch_size):
+                    gtbb = np.reshape(input_pipeline_out['groundtruth_bbs'][j, t], (10, 4))
+
+                    if t == 0:
+                        ordered_last_region_proposals[j, t + 1] = frcnn_out[j, t]
+                    else:
+                        for i in range(10):
+                            # i = player id.
+                            predid = int(target_cls[j, t, i])
+
+                            if predid == 0:
+                                # Take lstm.
+                                ordered_last_region_proposals[j, t + 1, i] = gtbb[i]
+                            else:
+                                # Take rp.
+                                ordered_last_region_proposals[j, t + 1, i] = frcnn_out[j, t, predid - 1]
+
             out, train_time = train(sess, network_tensors, input_pipeline_out, frcnn_out, target_cls,
+                                    ordered_last_region_proposals,
                                     cls_weight, reg_weight)
 
             interval_actions(epoch, step, globalstep,

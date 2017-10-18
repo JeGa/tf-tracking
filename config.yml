@@ -32,4 +32,4 @@ state_size: 800
 lstm_cls_layers: 3
 lstm_cls_state_size: 800
 
-restore: no
+restore: yes

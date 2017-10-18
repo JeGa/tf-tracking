@@ -1,7 +1,6 @@
 import numpy as np
 import tensorflow as tf
 
-import trainloop
 import util.global_config as global_config
 import util.helper
 import util.network_io_utils
