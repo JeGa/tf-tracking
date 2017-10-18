@@ -1,37 +1,17 @@
-import tensorflow as tf
-import numpy as np
 import logging
 import os
+import numpy as np
+import tensorflow as tf
 
-import util.helper
+import valloop
 import networks.cls_lstm
 import util.global_config as global_config
-import valloop
+import util.helper
+import util.network_io_utils
 
 # TODO: Hacky, Hacky.
 frcnn_out = None
 frcnn_time = None
-
-
-def cls_pred(predictions, batch, time):
-    classifications = np.zeros((10, 11))
-    for i in range(len(predictions)):
-        classifications[i] = predictions[i][batch, time]
-    return classifications
-
-
-def cls_pred_final(predictions, batch, time):
-    return np.squeeze(np.argmax(cls_pred(predictions, batch, time), axis=1))
-
-
-# If you want to run only the input data reading part.
-def read_input(sess, tensors, input_handles):
-    with util.helper.timeit() as input_time:
-        # Images are normalized.
-        out_input_pipeline = sess.run(tensors, feed_dict={input_handles['handle']: input_handles['training_handle']})
-
-    return out_input_pipeline, input_time.time()
-
 
 # Uses an own session for the rcnn graph.
 def predict_frcnn(sequence_images, frcnn):
@@ -80,6 +60,8 @@ def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls,
 
             tensors['placeholders']['region_proposals']: frcnn_out,
             tensors['placeholders']['target_cls']: target_cls,
+            # TODO !!!!!!!
+            tensors['placeholders']['ordered_last_region_proposals']: ordered_last_region_proposals,
 
             tensors['combined']['cls_weight']: cls_weight,
             tensors['combined']['reg_weight']: reg_weight
@@ -146,7 +128,8 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
     # Go through one epoch.
     while True:
         try:
-            input_pipeline_out, input_time = read_input(sess, input_pipeline_tensors, input_handles)
+            input_pipeline_out, input_time = util.network_io_utils.read_input(sess, input_pipeline_tensors,
+                                                                              input_handles, 'training')
 
             global frcnn_out
             global frcnn_time
