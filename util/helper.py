@@ -192,8 +192,91 @@ def draw_allbbs_and_cls_labels_and_save(
         draw.text([10 + i * 20, height - 20], str(cls_targets[i]))
         draw.text([10 + i * 20, height - 10], str(np.argmax(cls_predictions[i])), fill='yellow')
 
-    file = os.path.normpath(os.path.join(global_config.cfg['results'], 'prediction'))
-    img.save(file + '_' + filename + '.jpg')
+    file = os.path.normpath(os.path.join(global_config.cfg['results'], filename + '.jpg'))
+    img.save(file)
+
+
+# TODO: A lot of duplications.
+def draw_allbbs_and_cls_labels_and_save_predict(
+        image,
+        reg_predictions,
+        region_proposals,
+        cls_predictions,
+        filename):
+    """
+    :param image: Shape (height, width, 3).
+    :param reg_predictions: Shape (10, 4). Format [x, y, w, h].
+    :param region_proposals: Shape (10, 4). Format [x, y, w, h].
+    :param cls_predictions: Shape (10, 11).
+    :param filename: String.
+    """
+    height = image.shape[0]
+    width = image.shape[1]
+
+    img = Image.fromarray((image * 255).astype(np.uint8))
+    draw = ImageDraw.Draw(img)
+
+    players = reg_predictions.shape[0]
+
+    # draw.rectangle wants [x0, y0, x1, y1].
+
+    # rps.
+    for i in range(players):
+        rp_bb = region_proposals[i]
+
+        # Find i + 1 in the cls_targets list.
+        # def findlabel(cls_targets, i):
+        #     for j in range(players):
+        #         if cls_targets[j] == i + 1:
+        #             return j + 1
+        #     return 0
+        #
+        # gt_label = findlabel(cls_targets, i)
+
+        xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(rp_bb)
+        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
+        draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='green')  # + str(int(gt_label)
+
+    # lstm
+    for i in range(players):
+        pred_bb = reg_predictions[i]
+
+        xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(pred_bb)
+        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
+        draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='blue')  # + str(int(gt_label)
+
+    # The predicted bb.
+    for i in range(players):
+        # i = player id.
+
+        pred_label = np.argmax(cls_predictions[i])
+
+        # Means: For player i take rp pred_label (if != 0) or take i-th lstm prediction.
+
+        # Take lstm prediction from player i.
+        if pred_label == 0:
+            xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(reg_predictions[i])
+            draw.rectangle([xmin * width - 1, ymin * height - 1, xmax * width + 1, ymax * height + 1], outline='yellow')
+            draw.text([xmin * width + 40, ymin * height - 10], str(i + 1) + '-0', fill='yellow')
+        # Take rp pred_label.
+        else:
+            rp_bb = region_proposals[pred_label - 1]
+            xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(rp_bb)
+            draw.rectangle([xmin * width - 1, ymin * height - 1, xmax * width + 1, ymax * height + 1], outline='yellow')
+            draw.text([xmin * width + 40, ymin * height - 10], str(i + 1) + '-' + str(pred_label), fill='yellow')
+
+    draw.text([10, 10], 'groundtruth_bb', fill='red')
+    draw.text([10, 20], 'region_proposal', fill='green')
+    draw.text([10, 30], 'lstm', fill='blue')
+    draw.text([10, 40], 'selected_tracking_bb', fill='yellow')
+
+    # Print predictions.
+    for i in range(players):
+        draw.text([10 + i * 20, height - 20], 'P' + str(i + 1))
+        draw.text([10 + i * 20, height - 10], str(np.argmax(cls_predictions[i])), fill='yellow')
+
+    file = os.path.normpath(os.path.join(global_config.cfg['results'], filename + '.jpg'))
+    img.save(file)
 
 
 def draw_bb_and_cls_labels_and_save(image, rp_bbs, gt_bbs, labels, filename):

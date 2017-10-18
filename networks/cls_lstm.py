@@ -57,7 +57,8 @@ def generate_cls_gt(input_pipeline_out, frcnn_out):
     return target_cls
 
 
-def arrange_classifier_inputs(region_proposals, lstm_predictions):
+# TODO: Remove comments.
+def arrange_classifier_inputs(region_proposals, ordered_last_region_proposals, reg_predictions):
     # 1. last_lstm_predictions: [batch_size, sequence_length, 10, 4].
     #       - Add zero vector to have [batch_size, sequence_length + 1, 10, 4]
     #       - Optionally discard last vector.
@@ -66,23 +67,33 @@ def arrange_classifier_inputs(region_proposals, lstm_predictions):
 
     # lstm_predictions Shape (batch_size, step_size, output_dimension).
 
-    current_region_proposals = tf.reshape(region_proposals, [global_config.cfg['batch_size'],
-                                                             global_config.cfg['backprop_step_size'],
-                                                             40])
+    region_proposals = tf.reshape(region_proposals, [global_config.cfg['batch_size'],
+                                                     global_config.cfg['backprop_step_size'],
+                                                     40])
 
-    start_region_proposal = tf.zeros((global_config.cfg['batch_size'], 1, 10, 4))
-    last_region_proposals = tf.concat([start_region_proposal, region_proposals[:, :-1]], axis=1)
-    last_region_proposals = tf.reshape(last_region_proposals, [global_config.cfg['batch_size'],
-                                                               global_config.cfg['backprop_step_size'],
-                                                               40])
+    ordered_last_region_proposals = tf.reshape(ordered_last_region_proposals, [global_config.cfg['batch_size'],
+                                                                               global_config.cfg['backprop_step_size'],
+                                                                               40])
 
-    start_lstm_prediction = tf.zeros((global_config.cfg['batch_size'], 1, 40))
-    last_lstm_predictions = tf.concat([start_lstm_prediction, lstm_predictions[:, :-1]], axis=1)
+    ordered_lstm_predictions = tf.reshape(reg_predictions, [global_config.cfg['batch_size'],
+                                                            global_config.cfg['backprop_step_size'],
+                                                            40])
+
+    # start_region_proposal = tf.zeros((global_config.cfg['batch_size'], 1, 10, 4))
+    # last_region_proposals = tf.concat([start_region_proposal, region_proposals[:, :-1]], axis=1)
+    # last_region_proposals = tf.reshape(last_region_proposals, [global_config.cfg['batch_size'],
+    #                                                           global_config.cfg['backprop_step_size'],
+    #                                                           40])
+
+    # start_lstm_prediction = tf.zeros((global_config.cfg['batch_size'], 1, 40))
+    # last_lstm_predictions = tf.concat([start_lstm_prediction, lstm_predictions[:, :-1]], axis=1)
 
     # Stack all into input vector for classificator.
-    cls_input = tf.concat([current_region_proposals, last_region_proposals, last_lstm_predictions], axis=2)
+    # cls_input = tf.concat([current_region_proposals, last_region_proposals, last_lstm_predictions], axis=2)
 
-    return cls_input, last_region_proposals, last_lstm_predictions
+    cls_input = tf.concat([region_proposals, ordered_last_region_proposals, ordered_lstm_predictions], axis=2)
+
+    return cls_input
 
 
 def _shapeinfo(cls_input, cls_target):
@@ -158,10 +169,6 @@ def network(cls_input, cls_target, state_size, num_layers=1):
 
     total_loss = tf.add_n(all_players_loss)
 
-    # TODO
-    # with tf.name_scope('training'):
-    #   train_step = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
-
     # Make predictions.
     all_predictions = []
     for i in range(PLAYERS):
@@ -170,12 +177,14 @@ def network(cls_input, cls_target, state_size, num_layers=1):
     return total_loss, all_predictions
 
 
-def build(region_proposals, lstm_predictions, cls_target):
-    cls_input, last_region_proposals, last_lstm_predictions = arrange_classifier_inputs(region_proposals,
-                                                                                        lstm_predictions)
+def build(cls_region_proposals,
+          cls_ordered_lrp,
+          reg_predictions,
+          cls_targets):
+    cls_input = arrange_classifier_inputs(cls_region_proposals, cls_ordered_lrp, reg_predictions)
 
-    total_loss, predictions = network(cls_input, cls_target,
+    total_loss, predictions = network(cls_input, cls_targets,
                                       global_config.cfg['lstm_cls_state_size'],
                                       global_config.cfg['lstm_cls_layers'])
 
-    return cls_input, last_region_proposals, last_lstm_predictions, total_loss, predictions
+    return cls_input, total_loss, predictions

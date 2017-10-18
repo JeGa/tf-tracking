@@ -13,6 +13,17 @@ frcnn_out = None
 frcnn_time = None
 
 
+def cls_pred(predictions, batch, time):
+    classifications = np.zeros((10, 11))
+    for i in range(len(predictions)):
+        classifications[i] = predictions[i][batch, time]
+    return classifications
+
+
+def cls_pred_final(predictions, batch, time):
+    return np.squeeze(np.argmax(cls_pred(predictions, batch, time), axis=1))
+
+
 # If you want to run only the input data reading part.
 def read_input(sess, tensors, input_handles):
     with util.helper.timeit() as input_time:
@@ -96,10 +107,6 @@ def interval_actions(epoch, step, globalstep,
         saver.save(sess, os.path.join(global_config.cfg['checkpoints'], 'checkpoint'),
                    global_step=globalstep)
 
-    if validate:
-        if globalstep % global_config.cfg['validation_interval'] == 0:
-            valloop.run()  # (sess, tensors, input_handles, train_writer, globalstep)
-
 
 def run(sess, input_pipeline_tensors, input_handles, network_tensors,
         train_writer, epoch, saver, globalstep, frcnn,
@@ -149,6 +156,9 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
             else:
                 frcnn_time = 0
 
+            # ============================================================================================
+            # DO THE STUFF HERE.
+
             # Shape (batch_size, sequence_size, 10).
             target_cls = networks.cls_lstm.generate_cls_gt(input_pipeline_out, frcnn_out)
 
@@ -160,24 +170,26 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
                              out['total_loss'], train_writer, out['summary'],
                              saver, sess)
 
-            def cls_pred(predictions, batch, time):
-                classifications = np.zeros((10, 11))
-                for i in range(len(predictions)):
-                    classifications[i] = predictions[i][batch, time]
-                return classifications
+            # # Draw the predicted classification labels.
+            # if globalstep % 5 == 0:
+            #     for s in range(input_pipeline_out['images'].shape[1]):
+            #         util.helper.draw_allbbs_and_cls_labels_and_save(
+            #             input_pipeline_out['images'][0, s],
+            #             np.reshape(out['reg_targets'][0, s], (10, 4)),
+            #             np.reshape(out['last_lstm_predictions'][0, s], (10, 4)),
+            #             frcnn_out[0, s],
+            #             out['cls_targets'][0, s],
+            #             cls_pred(out['cls_predictions'], 0, s),
+            #             'train_batch0_time' + str(s))
 
-            # Draw the predicted classification labels.
-            if globalstep % 5 == 0:
-                for s in range(input_pipeline_out['images'].shape[1]):
-                    util.helper.draw_allbbs_and_cls_labels_and_save(
-                        input_pipeline_out['images'][0, s],
-                        np.reshape(out['reg_targets'][0, s], (10, 4)),
-                        np.reshape(out['last_lstm_predictions'][0, s], (10, 4)),
-                        frcnn_out[0, s],
-                        out['cls_targets'][0, s],
-                        cls_pred(out['cls_predictions'], 0, s),
-                        'batch0_time' + str(s))
-
+            # TODO: Put this into interval-actions and optimize parameters.
+            if validate:
+                if globalstep % global_config.cfg['validation_interval'] == 0:
+                    logging.info('**Start validation.**')
+                    valloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
+                                train_writer, epoch, saver, globalstep, frcnn,
+                                cls_weight, reg_weight)
+                    logging.info('**Finished validation.**')
             step += 1
             globalstep += 1
         except tf.errors.OutOfRangeError:

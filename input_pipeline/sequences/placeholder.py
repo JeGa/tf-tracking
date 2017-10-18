@@ -14,6 +14,16 @@ def build_cls_labels():
     return target_cls
 
 
+def build_cls_input():
+    PLAYERS = input_pipeline.sequences.tfrecord_reader.PLAYERS
+    batch_size = global_config.cfg['batch_size']
+    backprop_step_size = global_config.cfg['backprop_step_size']
+
+    cls_ordered_lrp = tf.placeholder(tf.float32, shape=(batch_size, backprop_step_size, PLAYERS, 4), name='ordered_lrp')
+
+    return cls_ordered_lrp
+
+
 def rps():
     region_proposals = tf.placeholder(tf.float32, shape=(global_config.cfg['batch_size'],
                                                          global_config.cfg['backprop_step_size'],

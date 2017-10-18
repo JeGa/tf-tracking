@@ -47,7 +47,7 @@ def bbdata_image(bbs, image, name):
     tf.summary.image(name, image_bbs)
 
 
-def add_summaries(tensors):
+def add_train_summaries(tensors):
     tf.summary.scalar('lstm_reg_loss', tensors['lstm']['loss'])
     tf.summary.scalar('lstm_cls_loss', tensors['cls']['loss'])
     tf.summary.scalar('total_loss', tensors['combined']['loss'])
@@ -70,19 +70,20 @@ def add_summaries(tensors):
     tensors['summary'] = tf.summary.merge_all()
 
 
-def build_network(inputs, targets, region_proposals, target_cls):
+def build_network(reg_inputs, reg_targets,
+                  cls_region_proposals, cls_ordered_lrp, cls_targets):
     with tf.variable_scope('lstm_bb_regressor'):
         lstm_reg_total_loss, lstm_reg_predictions = networks.bbreg_lstm.build(
-            inputs, targets,
+            reg_inputs, reg_targets,
             global_config.cfg['state_size'],
             global_config.cfg['lstm_layers'])
 
     with tf.variable_scope('lstm_bb_classificator'):
-        (cls_input, last_region_proposals, last_lstm_predictions,
-         lstm_cls_total_loss, lstm_cls_predictions) = networks.cls_lstm.build(
-            region_proposals,
+        (cls_input, lstm_cls_total_loss, lstm_cls_predictions) = networks.cls_lstm.build(
+            cls_region_proposals,
+            cls_ordered_lrp,
             lstm_reg_predictions,
-            target_cls)
+            cls_targets)
 
     with tf.variable_scope('total_loss_weights'):
         cls_weight = tf.placeholder(tf.float32, shape=())
@@ -96,28 +97,22 @@ def build_network(inputs, targets, region_proposals, target_cls):
         clsvars = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, 'model/lstm_bb_classificator')
 
         total_train_step = tf.train.AdagradOptimizer(global_config.cfg['learning_rate']).minimize(total_loss,
-                                                                                                  var_list=[clsvars])
+                                                                                                  var_list=[regvars])
 
     lstm_tensors = {
-        'inputs': inputs,
-        'targets': targets,
+        'inputs': reg_inputs,
+        'targets': reg_targets,
 
         'loss': lstm_reg_total_loss,
         'predictions': lstm_reg_predictions,
-
-        'last_region_proposal': last_region_proposals,
-        'last_lstm_predictions': last_lstm_predictions
     }
 
     classifier_tensors = {
         'inputs': cls_input,
-        'targets': target_cls,
+        'targets': cls_targets,
 
         'loss': lstm_cls_total_loss,
         'predictions': lstm_cls_predictions,
-
-        'last_region_proposals': last_region_proposals,
-        'last_lstm_predictions': last_lstm_predictions
     }
 
     combined_loss_tensors = {
@@ -133,34 +128,46 @@ def build_network(inputs, targets, region_proposals, target_cls):
 
 def build_lstm_and_classifier():
     input_data_placeholders = input_pipeline.sequences.placeholder.build_lstm_input()
+
     target_cls_placeholder = input_pipeline.sequences.placeholder.build_cls_labels()
     region_proposals = input_pipeline.sequences.placeholder.rps()
+    cls_ordered_lrp = input_pipeline.sequences.placeholder.build_cls_input()
 
     # This builds the lstm and the classifier network.
     with tf.variable_scope('model'):
         lstm_tensors, classifier_tensors, combined_loss_tensors = build_network(
-            input_data_placeholders['groundtruth_bbs'],
-            input_data_placeholders['target_bbs'],
-            region_proposals,
-            target_cls_placeholder)
+            input_data_placeholders['groundtruth_bbs'], input_data_placeholders['target_bbs'],
+            region_proposals, cls_ordered_lrp, target_cls_placeholder)
 
+    # Adds 'summary' to tensor.
     tensors = {
         'placeholders': {
+            # ==== REG PART:
+
+            # Give into reg lstm as input.
             'groundtruth_bbs': input_data_placeholders['groundtruth_bbs'],
+
+            # Target for reg lstm.
             'target_bbs': input_data_placeholders['target_bbs'],
+
+            # Not used.
             'images': input_data_placeholders['images'],
 
-            'target_cls': target_cls_placeholder,
-            'region_proposals': region_proposals
+            # ==== CLS PART:
+
+            # Build input vector for cls lstm from:
+            'region_proposals': region_proposals,
+            'ordered_last_region_proposals': cls_ordered_lrp,
+
+            # Target for cls.
+            'target_cls': target_cls_placeholder
         },
 
         'lstm': lstm_tensors,
         'cls': classifier_tensors,
         'combined': combined_loss_tensors
     }
-
-    # Adds 'summary' to tensor.
-    add_summaries(tensors)
+    add_train_summaries(tensors)
 
     return tensors
 
