@@ -93,6 +93,8 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
             # ============================================================================================
             # DO THE STUFF HERE.
 
+            # print(input_pipeline_out['groundtruth_bbs'].shape)
+
             # Shape (batch_size, sequence_size, 10).
             target_cls = networks.cls_lstm.generate_cls_gt(input_pipeline_out, frcnn_out)
 
@@ -104,7 +106,7 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
 
             ordered_last_region_proposals = np.zeros((batch_size, sequence_length, 10, 4))
             for t in range(sequence_length - 1):
-                for j in range(batch_size):
+                for j in range(input_pipeline_out['groundtruth_bbs'].shape[0]):
                     gtbb = np.reshape(input_pipeline_out['groundtruth_bbs'][j, t], (10, 4))
 
                     if t == 0:
@@ -131,9 +133,11 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
                              saver, sess)
 
             if validate:
+                # TODO
+                target_cls_init = target_cls[:, 0, :]
                 if globalstep % global_config.cfg['validation_interval'] == 0:
                     logging.info('**Start validation.**')
-                    valloop.run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn)
+                    valloop.run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn, target_cls_init)
                     logging.info('**Finished validation.**')
 
             step += 1

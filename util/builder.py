@@ -73,7 +73,7 @@ def add_train_summaries(tensors):
 def build_network(reg_inputs, reg_targets,
                   cls_region_proposals, cls_ordered_lrp, cls_targets):
     with tf.variable_scope('lstm_bb_regressor'):
-        lstm_reg_total_loss, lstm_reg_predictions = networks.bbreg_lstm.build(
+        lstm_reg_total_loss, lstm_reg_predictions = networks.bbreg_lstm.build_forward(
             reg_inputs, reg_targets,
             global_config.cfg['state_size'],
             global_config.cfg['lstm_layers'])

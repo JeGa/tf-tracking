@@ -31,16 +31,23 @@ def loop(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
 
     globalstep = 0
 
-    cls_weight = global_config.cfg['cls_weigth']
-    reg_weight = global_config.cfg['reg_weigth']
+    cls_weight = global_config.cfg['cls_weight']
+    reg_weight = global_config.cfg['reg_weight']
 
-    with util.helper.timeit() as ttime:
-        for epoch in range(global_config.cfg['epochs']):
-            globalstep = trainloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
-                                       train_writer, epoch, saver, globalstep, frcnn,
-                                       cls_weight, reg_weight)
+    if global_config.cfg['mode'] == 'training':
+        with util.helper.timeit() as ttime:
+            for epoch in range(global_config.cfg['epochs']):
+                globalstep = trainloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
+                                           train_writer, epoch, saver, globalstep, frcnn,
+                                           cls_weight, reg_weight)
 
-    logging.info('Done training (' + str(ttime.time()) + ' sec, ' + str(globalstep) + ' steps).')
+        logging.info('Done training (' + str(ttime.time()) + ' sec, ' + str(globalstep) + ' steps).')
+        # elif global_config.cfg['mode'] == 'testing':
+        #     with util.helper.timeit() as ttime:
+        #         globalstep = trainloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
+        #                                    frcnn, ###)
+        #
+        #     logging.info('Done testing (' + str(ttime.time()) + ' sec.)')
 
 
 @click.command()

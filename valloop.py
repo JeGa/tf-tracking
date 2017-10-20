@@ -10,7 +10,7 @@ frcnn_out = None
 frcnn_time = None
 
 
-def run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
+def run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn, target_cls_init):
     sess.run(input_handles['validation_initializer'])
 
     step = 0
@@ -21,13 +21,13 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
             input_pipeline_out, input_time = util.network_io_utils.read_input(sess, input_pipeline_tensors,
                                                                               input_handles, 'validation')
 
-            global frcnn_out
-            global frcnn_time
+            # global frcnn_out
+            # global frcnn_time
 
-            if frcnn_out is None:
-                frcnn_out, frcnn_time = util.network_io_utils.predict_frcnn(input_pipeline_out['images'], frcnn)
-            else:
-                frcnn_time = 0
+            # if frcnn_out is None:
+            frcnn_out, frcnn_time = util.network_io_utils.predict_frcnn(input_pipeline_out['images'], frcnn)
+            # else:
+            #    frcnn_time = 0
 
             # ============================================================================================
             # DO THE STUFF HERE.
@@ -67,7 +67,24 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
                                                    output_tensors['cls_predictions'],
                                                    ordered_lstmreg_input,
                                                    output_tensors['reg_predictions'],
-                                                   i)
+                                                   i, target_cls_init)
+
+            # TODO
+            input_tensors = {
+                'cls_predictions': network_tensors['cls']['predictions'],
+                'reg_predictions': network_tensors['lstm']['predictions']
+            }
+
+            # Prediction.
+            output_tensors = sess.run(input_tensors, feed_dict={
+                # Reg part.
+                network_tensors['placeholders']['groundtruth_bbs']: np.reshape(
+                    ordered_lstmreg_input, (batch_size, sequence_length, 40)),
+
+                # Cls part.
+                network_tensors['placeholders']['region_proposals']: frcnn_out,
+                network_tensors['placeholders']['ordered_last_region_proposals']: ordered_last_region_proposals,
+            })
 
             for s in range(input_pipeline_out['images'].shape[1]):
                 util.helper.draw_allbbs_and_cls_labels_and_save_predict(
