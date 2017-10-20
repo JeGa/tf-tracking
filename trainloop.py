@@ -9,10 +9,6 @@ import util.helper
 import util.network_io_utils
 import valloop
 
-# TODO: Hacky, Hacky.
-frcnn_out = None
-frcnn_time = None
-
 
 # Train the lstm with input data given as feed_dict.
 def train(sess, tensors, input_pipeline_out, frcnn_out, target_cls, ordered_last_region_proposals,
@@ -71,7 +67,7 @@ def interval_actions(epoch, step, globalstep,
 
 def run(sess, input_pipeline_tensors, input_handles, network_tensors,
         train_writer, epoch, saver, globalstep, frcnn,
-        cls_weight, reg_weight, validate=True):
+        cls_weight, reg_weight, frcnn_saved, validate=True):
     sess.run(input_handles['training_initializer'])
 
     step = 0
@@ -82,13 +78,16 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors,
             input_pipeline_out, input_time = util.network_io_utils.read_input(sess, input_pipeline_tensors,
                                                                               input_handles, 'training')
 
-            global frcnn_out
-            global frcnn_time
+            sequence_id = ''.join([i.decode() for i in input_pipeline_out['sequence_id'][0]])
 
-            if frcnn_out is None:
-                frcnn_out, frcnn_time = util.network_io_utils.predict_frcnn(input_pipeline_out['images'], frcnn)
-            else:
+            if sequence_id in frcnn_saved:
+                frcnn_out = frcnn_saved[sequence_id]
                 frcnn_time = 0
+            else:
+                frcnn_out, frcnn_time = util.network_io_utils.predict_frcnn(input_pipeline_out['images'], frcnn)
+                frcnn_saved[sequence_id] = frcnn_out
+
+                util.helper.savedict(frcnn_saved, global_config.cfg['frcnn_saved_file'])
 
             # ============================================================================================
             # DO THE STUFF HERE.

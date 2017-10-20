@@ -27,6 +27,8 @@ def parse_proto(serialized_example):
 
     # TODO players = tf.to_int32(context['players'])
 
+    sequence_id = tf.sparse_tensor_to_dense(context['sequence_id'], default_value='')
+
     def decode(raw_bytes):
         return tf.div(tf.to_float(tf.image.decode_jpeg(raw_bytes, channels=3)), 255.0)
 
@@ -41,7 +43,7 @@ def parse_proto(serialized_example):
     cropped_bbs = _bb(feature_list['bbs'], sequence_length)
     cropped_bbs_targets = _bb(feature_list['bbs_targets'], sequence_length)
 
-    return cropped_bbs, cropped_bbs_targets, cropped_image_sequence
+    return cropped_bbs, cropped_bbs_targets, cropped_image_sequence, sequence_id
 
 
 def create_datasets(training_record_file, validation_record_file):
@@ -51,7 +53,8 @@ def create_datasets(training_record_file, validation_record_file):
     paddshapes = (
         [global_config.cfg['backprop_step_size'], 4 * PLAYERS],
         [global_config.cfg['backprop_step_size'], 4 * PLAYERS],
-        [global_config.cfg['backprop_step_size'], -1, -1, -1])
+        [global_config.cfg['backprop_step_size'], -1, -1, -1],
+        [-1])
 
     training_dataset = training_dataset.map(parse_proto)
     training_dataset = training_dataset.padded_batch(global_config.cfg['batch_size'],
@@ -90,7 +93,7 @@ def build():
         'h': handle
     }
 
-    groundtruth_bbs, target_bbs, images = iterator.get_next()
+    groundtruth_bbs, target_bbs, images, sequence_id = iterator.get_next()
 
     groundtruth_bbs.set_shape((global_config.cfg['batch_size'],
                                global_config.cfg['backprop_step_size'],
@@ -105,6 +108,7 @@ def build():
                       None, None, 3))
 
     input_data = {
+        'sequence_id': sequence_id,
         'groundtruth_bbs': groundtruth_bbs,
         'target_bbs': target_bbs,
         'images': images

@@ -7,6 +7,7 @@ import os
 import numpy as np
 from PIL import Image
 from PIL import ImageDraw
+import pickle
 
 
 def tfprint(node, out):
@@ -234,16 +235,16 @@ def draw_allbbs_and_cls_labels_and_save_predict(
         # gt_label = findlabel(cls_targets, i)
 
         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(rp_bb)
-        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
-        draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='green')  # + str(int(gt_label)
+        # draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
+        # draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='green')  # + str(int(gt_label)
 
     # lstm
     for i in range(players):
         pred_bb = reg_predictions[i]
 
         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(pred_bb)
-        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
-        draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='blue')  # + str(int(gt_label)
+        # draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
+        # draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='blue')  # + str(int(gt_label)
 
     # The predicted bb.
     for i in range(players):
@@ -387,3 +388,21 @@ def abscoord(bb, width, height):
     x, y, w, h = bb
 
     return [x * width, y * height, w * width, h * height]
+
+
+def savedict(dictionary, filename):
+    filename = os.path.join(global_config.cfg['results'], filename)
+
+    with open(filename, 'wb') as handle:
+        pickle.dump(dictionary, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def loaddict(filename):
+    filename = os.path.join(global_config.cfg['results'], filename)
+
+    if not os.path.isfile(filename):
+        return dict()
+
+    with open(filename, 'rb') as handle:
+        dictionary = pickle.load(handle)
+    return dictionary

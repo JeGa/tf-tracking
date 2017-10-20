@@ -34,14 +34,18 @@ def loop(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn):
     cls_weight = global_config.cfg['cls_weight']
     reg_weight = global_config.cfg['reg_weight']
 
+    frcnn_saved = util.helper.loaddict(global_config.cfg['frcnn_saved_file'])
+
     if global_config.cfg['mode'] == 'training':
         with util.helper.timeit() as ttime:
             for epoch in range(global_config.cfg['epochs']):
                 globalstep = trainloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
                                            train_writer, epoch, saver, globalstep, frcnn,
-                                           cls_weight, reg_weight)
+                                           cls_weight, reg_weight, frcnn_saved)
 
         logging.info('Done training (' + str(ttime.time()) + ' sec, ' + str(globalstep) + ' steps).')
+
+
         # elif global_config.cfg['mode'] == 'testing':
         #     with util.helper.timeit() as ttime:
         #         globalstep = trainloop.run(sess, input_pipeline_tensors, input_handles, network_tensors,
