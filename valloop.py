@@ -5,9 +5,6 @@ import util.global_config as global_config
 import util.helper
 import util.network_io_utils
 
-# TODO: Hacky, Hacky.
-frcnn_out = None
-frcnn_time = None
 
 
 def run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn, target_cls_init):
@@ -21,13 +18,8 @@ def run(sess, input_pipeline_tensors, input_handles, network_tensors, frcnn, tar
             input_pipeline_out, input_time = util.network_io_utils.read_input(sess, input_pipeline_tensors,
                                                                               input_handles, 'validation')
 
-            # global frcnn_out
-            # global frcnn_time
-
-            # if frcnn_out is None:
+            # TODO: Could use pre-computed.
             frcnn_out, frcnn_time = util.network_io_utils.predict_frcnn(input_pipeline_out['images'], frcnn)
-            # else:
-            #    frcnn_time = 0
 
             # ============================================================================================
             # DO THE STUFF HERE.

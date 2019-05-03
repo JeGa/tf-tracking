@@ -235,16 +235,16 @@ def draw_allbbs_and_cls_labels_and_save_predict(
         # gt_label = findlabel(cls_targets, i)
 
         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(rp_bb)
-        # draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
-        # draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='green')  # + str(int(gt_label)
+        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='green')
+        draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='green')  # + str(int(gt_label)
 
     # lstm
     for i in range(players):
         pred_bb = reg_predictions[i]
 
         xmin, ymin, xmax, ymax = xywh_to_xmin_ymin_xmax_ymax(pred_bb)
-        # draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
-        # draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='blue')  # + str(int(gt_label)
+        draw.rectangle([xmin * width, ymin * height, xmax * width, ymax * height], outline='blue')
+        draw.text([xmin * width + 20, ymin * height - 10], str(i + 1), fill='blue')  # + str(int(gt_label)
 
     # The predicted bb.
     for i in range(players):

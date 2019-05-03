@@ -14,7 +14,7 @@ results: 'results'
 frcnn_saved_file: 'frcnn.pickle'
 
 summary_interval: 1
-result_interval: 10
+result_interval: 20
 
 save_interval: 50
 validation_interval: 200
@@ -25,7 +25,7 @@ resize_width: 854
 batch_size: 1
 epochs: 5000000
 backprop_step_size: 40 # Defines the width of the unrolled rnn graph.
-learning_rate: 0.0005
+learning_rate: 0.00005
 
 lstm_layers: 1
 state_size: 800
@@ -33,10 +33,10 @@ state_size: 800
 lstm_cls_layers: 3
 lstm_cls_state_size: 800
 
-train: 'all'
-reg_weight: 0.9
-cls_weight: 0.1
+train: 'cls'
+reg_weight: 0
+cls_weight: 1
 
-restore: no
+restore: yes
 
 mode: 'training'

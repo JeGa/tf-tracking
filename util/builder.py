@@ -52,20 +52,20 @@ def add_train_summaries(tensors):
     tf.summary.scalar('lstm_cls_loss', tensors['cls']['loss'])
     tf.summary.scalar('total_loss', tensors['combined']['loss'])
 
-    batch = 0
-    sequence_element = -1
-
-    bbdata_image(tensors['lstm']['inputs'][batch][sequence_element],
-                 tensors['placeholders']['images'][batch][sequence_element],
-                 'inputs')
-
-    bbdata_image(tensors['lstm']['targets'][batch][sequence_element],
-                 tensors['placeholders']['images'][batch][sequence_element],
-                 'targets')
-
-    bbdata_image(tensors['lstm']['predictions'][batch][sequence_element],
-                 tensors['placeholders']['images'][batch][sequence_element],
-                 'predictions')
+    # batch = 0
+    # sequence_element = -1
+    #
+    # bbdata_image(tensors['lstm']['inputs'][batch][sequence_element],
+    #              tensors['placeholders']['images'][batch][sequence_element],
+    #              'inputs')
+    #
+    # bbdata_image(tensors['lstm']['targets'][batch][sequence_element],
+    #              tensors['placeholders']['images'][batch][sequence_element],
+    #              'targets')
+    #
+    # bbdata_image(tensors['lstm']['predictions'][batch][sequence_element],
+    #              tensors['placeholders']['images'][batch][sequence_element],
+    #              'predictions')
 
     tensors['summary'] = tf.summary.merge_all()
 

@@ -56,19 +56,19 @@ def sort_rps(frcnn_out, ordered_last_region_proposals,
 
         if t == 0:
             # TODO
-            frcnn_out_ordered = frcnn_out[j, t]
-            frcnn_out_unordered = frcnn_out[j, t]
+            # frcnn_out_ordered = frcnn_out[j, t]
+            # frcnn_out_unordered = frcnn_out[j, t]
+            #
+            # for i in range(10):
+            #     tcl = int(target_cls_init[j, i])
+            #     if tcl != 0:
+            #         frcnn_out_ordered[i] = frcnn_out_unordered[tcl - 1]
+            #
+            # ordered_last_region_proposals[j, t + 1] = frcnn_out_ordered
+            # ordered_lstmreg_input[j, t + 1] = frcnn_out_ordered
 
-            for i in range(10):
-                tcl = int(target_cls_init[j, i])
-                if tcl != 0:
-                    frcnn_out_ordered[i] = frcnn_out_unordered[tcl - 1]
-
-            ordered_last_region_proposals[j, t + 1] = frcnn_out_ordered
-            ordered_lstmreg_input[j, t + 1] = frcnn_out_ordered
-
-            # ordered_last_region_proposals[j, t + 1] = frcnn_out[j, t]
-            # ordered_lstmreg_input[j, t + 1] = frcnn_out[j, t]
+            ordered_last_region_proposals[j, t + 1] = frcnn_out[j, t]
+            ordered_lstmreg_input[j, t + 1] = frcnn_out[j, t]
         else:
             for i in range(10):
                 # i = player id.
